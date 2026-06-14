@@ -5,8 +5,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth.jwks_fetcher import JwksFetcher
 from app.api.health import router as health_router
 from app.settings import Settings
+
+
+def _build_jwks_uri(settings: Settings) -> str:
+    """Construct the Entra ID JWKS URI from the tenant ID."""
+    return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/v2.0/keys"
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -14,9 +20,12 @@ def create_app(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Startup: nothing yet (Foundry client added in slice 6)
+        # Startup: create JwksFetcher and attach to app state
+        jwks_uri = _build_jwks_uri(settings)
+        app.state.jwks_fetcher = JwksFetcher(jwks_uri=jwks_uri)
         yield
-        # Shutdown: nothing yet
+        # Shutdown: close the JwksFetcher's HTTP client
+        await app.state.jwks_fetcher.aclose()
 
     app = FastAPI(
         title="customer-support-agent",
