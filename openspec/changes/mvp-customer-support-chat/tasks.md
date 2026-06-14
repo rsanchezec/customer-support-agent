@@ -212,6 +212,41 @@ Chain strategy: TBD
 
 ---
 
+## Slice 5: ConversationService + ChatTurnService Wiring (Batch 5)
+
+**Goal**: Add a `ConversationService` that owns the lifecycle of `Conversation` rows and wire it into `ChatTurnService` so the orchestrator operates on a real `Conversation` row (not a placeholder created inline).
+
+**Files**:
+- `backend/app/services/conversation_service.py` (~230 lines) — `ConversationService` class: `get_or_create`, `link_foundry_session` (idempotent), `list_for_user`, `set_title`; plus `ConversationNotFoundError`.
+- `backend/tests/services/test_conversation_service.py` (~206 lines) — 12 unit tests.
+- `backend/app/services/chat_turn.py` (updated) — `execute()` now takes `conversation: Conversation` instead of `Conversation | None`; auto-links Foundry session after `StreamFinal`.
+- `backend/app/services/__init__.py` (updated) — re-exports `ConversationService`, `ConversationNotFoundError`.
+- `backend/tests/services/test_chat_turn.py` (updated) — updated 7 existing tests to pass explicit `Conversation`; added `test_links_foundry_session_after_stream_final`, `test_does_not_relink_when_session_id_unchanged`.
+
+**Tasks**:
+- [x] 5.1 Create `backend/app/services/conversation_service.py` — `ConversationService` with `get_or_create` (scoped to user), `link_foundry_session` (idempotent), `list_for_user` (ordered by `created_at desc`), `set_title` (255-char truncate); `ConversationNotFoundError`.
+- [x] 5.2 Update `backend/app/services/chat_turn.py` — `execute()` signature changed: `conversation: Conversation` (required, not optional); `_link_foundry_session` called automatically after `StreamFinal` yields `service_session_id`.
+- [x] 5.3 Update `backend/app/services/__init__.py` — re-export `ConversationService`, `ConversationNotFoundError`.
+- [x] 5.4 Create `backend/tests/services/test_conversation_service.py` — 12 unit tests.
+- [x] 5.5 Update `backend/tests/services/test_chat_turn.py` — adjust existing 7 tests; add 2 new tests.
+- [x] 5.6 Verify `uv run pytest tests/` → 56/56 passed (43 existing + 13 new).
+- [x] 5.7 Verify `uv run ruff check .` passes.
+- [x] 5.8 Verify `uv run ruff format --check .` passes.
+
+**Depends on**: 4, 4.2
+**Acceptance criteria**:
+- `ConversationService.get_or_create(user, conversation_id=None)` creates a new `Conversation` row and returns `(conv, True)`.
+- `ConversationService.get_or_create(user, conversation_id=<uuid>)` returns the existing row scoped to that user, or raises `ConversationNotFoundError`.
+- `ConversationService.link_foundry_session` is idempotent: linking the same `foundry_conversation_id` twice does not issue a second UPDATE.
+- `ChatTurnService.execute(conversation=conv, ...)` no longer creates its own `Conversation` — the caller provides one.
+- After `StreamFinal` yields a `service_session_id`, `ChatTurnService` sets `conversation.foundry_conversation_id` (only if currently `None`).
+- All 56 tests pass.
+- `uv run ruff check .` and `uv run ruff format --check .` both pass.
+
+**Estimated changed lines**: ~728 (5 files)
+
+---
+
 ## Slice 5: REST Endpoints (Non-Streaming)
 
 **Goal**: `POST /conversations` and `GET /conversations/{id}/messages` with JWT auth and proper error envelopes.
