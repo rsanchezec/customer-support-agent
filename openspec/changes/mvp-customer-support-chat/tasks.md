@@ -123,13 +123,13 @@ Chain strategy: TBD
 - `backend/alembic/versions/0001_init.py` (~80 lines) — creates users, conversations, messages tables
 
 **Tasks**:
-2b.1 Create `backend/alembic.ini` pointing to `app.infrastructure.db.engine` and `app.db.models`
-2b.2 Create `backend/alembic/__init__.py`
-2b.3 Patch `backend/alembic/env.py` for async — read `DATABASE_URL`, `connection.run_sync(do_migrations)`
-2b.4 Create `backend/alembic/versions/0001_init.py` — creates `users` (unique index on entraid_oid), `conversations` (FK user_id ON DELETE CASCADE, index on foundry_conversation_id), `messages` (FK conversation_id ON DELETE CASCADE)
-2b.5 Run `uv run alembic upgrade head` against dev SQLite; verify all 3 tables created
-2b.6 Run `uv run alembic upgrade head` again; verify idempotent (no destructive change)
-2b.7 Verify `uv run alembic downgrade -1` works and re-run upgrade cleanly
+- [x] 2b.1 Create `backend/alembic.ini` pointing to `app.infrastructure.db.engine` and `app.db.models`
+- [x] 2b.2 Create `backend/alembic/__init__.py` (intentionally omitted — conflicts with real alembic package import)
+- [x] 2b.3 Patch `backend/alembic/env.py` for async — read `DATABASE_URL`, `connection.run_sync(do_migrations)`
+- [x] 2b.4 Create `backend/alembic/versions/0001_init.py` — creates `users` (unique index on entraid_oid), `conversations` (FK user_id ON DELETE CASCADE, index on foundry_conversation_id), `messages` (FK conversation_id ON DELETE CASCADE)
+- [x] 2b.5 Run `uv run alembic upgrade head` against dev SQLite; verify all 3 tables created
+- [x] 2b.6 Run `uv run alembic upgrade head` again; verify idempotent (no destructive change)
+- [x] 2b.7 Verify `uv run alembic downgrade -1` works and re-run upgrade cleanly
 
 **Depends on**: 2a
 **Acceptance criteria**:
@@ -207,6 +207,8 @@ Chain strategy: TBD
 - `uv run ruff check .` passes
 
 **Estimated changed lines**: ~120
+
+**Note**: `test_chat_turn.py` was extracted to a follow-up slice 4.2 (commit right after 4) to fit the 600-line budget. Streaming service and chat turn tests land in adjacent PRs; together they are the original slice 4.
 
 ---
 
