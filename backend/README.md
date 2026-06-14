@@ -6,8 +6,10 @@
 
 ```bash
 cd backend
-uv sync
+uv pip install -r requirements.txt -r requirements-dev.txt --prerelease=allow
 ```
+
+> **Note**: `agent-framework` is published as a prerelease on PyPI. The `--prerelease=allow` flag is required for `uv` to resolve it. Without the flag, the package is silently skipped.
 
 ### Run the development server
 
