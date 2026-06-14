@@ -1,0 +1,34 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment files — committed example only, not secrets
+.env
+
+# Python uv lockfile IS committed
+uv.lock
+
+# Dev database
+app.db
+*.db
+
+# Ruff
+.ruff_cache/
+.ruff_cache/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
