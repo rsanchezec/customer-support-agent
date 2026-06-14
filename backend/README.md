@@ -25,6 +25,8 @@ The API is live at `http://localhost:8000`. Interactive docs at `http://localhos
 uv run pytest
 ```
 
+Note: slice 2a (engine + models + session) lands in one PR; the message-model roundtrip tests land in a follow-up PR (2a.2). Both are required for the DB layer to be considered complete.
+
 ### Lint and format check
 
 ```bash

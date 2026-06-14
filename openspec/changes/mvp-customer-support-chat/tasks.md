@@ -108,6 +108,8 @@ Chain strategy: TBD
 
 **Estimated changed lines**: ~190
 
+**Note**: `test_message_model.py` was extracted to a follow-up slice 2a.2 (commit right after 2a) to fit the 400-line budget. Models and tests land in adjacent PRs; together they are the original slice 2.
+
 ---
 
 ## Slice 2b: DB Layer — Alembic Init + First Migration
