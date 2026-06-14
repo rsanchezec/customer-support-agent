@@ -1,0 +1,46 @@
+# OpenSpec Configuration — customer-support-agent
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.11+, azure-ai-projects, azure-identity, agent-framework
+  Architecture: Foundry agent invocation via AIProjectClient + FoundryAgent; WebSocket streaming backend; React ChatGPT-style frontend; DB-backed conversation persistence
+  Testing: No test runner detected — strict TDD unavailable
+  Style: English technical artifacts; Spanish (Rioplatense) user communication
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+delivery:
+  strategy: force-chained
+  max_lines_per_pr: 400
+
+testing:
+  strict_tdd: false
+  runner: null
+  unit: false
+  integration: false
+  e2e: false
+  coverage: false
+  linter: null
+  type_checker: null
+  formatter: null
