@@ -12,6 +12,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "azure-ai-projects>=2.1.0",
     "azure-identity",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.optional-dependencies]
