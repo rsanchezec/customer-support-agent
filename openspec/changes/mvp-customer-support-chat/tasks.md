@@ -51,16 +51,16 @@ Chain strategy: TBD
 - `backend/README.md` (~20 lines) — quickstart: `uv run uvicorn`
 
 **Tasks**:
-1.1 Create `backend/pyproject.toml` with all dependencies: fastapi, uvicorn, sqlalchemy[asyncio], aiosqlite, alembic, pyjwt[crypto], httpx, pydantic-settings, structlog, pytest, pytest-asyncio, ruff
-1.2 Create `backend/.env` mirroring `example/.env` keys with placeholder values
-1.3 Create `backend/.env.example` with all keys documented
-1.4 Create `backend/app/__init__.py`
-1.5 Create `backend/app/config.py` with pydantic-settings `Settings` class
-1.6 Create `backend/app/main.py` with FastAPI(), lifespan (placeholder), health router
-1.7 Create `backend/app/api/__init__.py`
-1.8 Create `backend/app/api/health.py` with `GET /healthz → 200`
-1.9 Run `uv sync` and verify `uv run uvicorn app.main:app --port 8000` boots
-1.10 Verify `GET http://localhost:8000/healthz` returns 200
+- [x] 1.1 Create `backend/pyproject.toml` with all dependencies: fastapi, uvicorn, sqlalchemy[asyncio], aiosqlite, alembic, pyjwt[crypto], httpx, pydantic-settings, structlog, pytest, pytest-asyncio, ruff
+- [x] 1.2 Create `backend/.env` mirroring `example/.env` keys with placeholder values
+- [x] 1.3 Create `backend/.env.example` with all keys documented
+- [x] 1.4 Create `backend/app/__init__.py`
+- [x] 1.5 Create `backend/app/config.py` with pydantic-settings `Settings` class
+- [x] 1.6 Create `backend/app/main.py` with FastAPI(), lifespan (placeholder), health router
+- [x] 1.7 Create `backend/app/api/__init__.py`
+- [x] 1.8 Create `backend/app/api/health.py` with `GET /healthz → 200`
+- [x] 1.9 Run `uv sync` and verify `uv run uvicorn app.main:app --port 8000` boots
+- [x] 1.10 Verify `GET http://localhost:8000/healthz` returns 200
 
 **Depends on**: —
 **Acceptance criteria**:
