@@ -1,11 +1,10 @@
 """Chat turn orchestrator.
 
 Coordinates the full lifecycle of one chat turn:
-1. Resolve or create the :class:`Conversation`.
-2. Persist the user message immediately (before the Foundry call).
-3. Stream deltas from Foundry while yielding events to the caller.
-4. Persist the assistant message once the stream finishes.
-5. Update the conversation's ``foundry_conversation_id`` if this was the first turn.
+1. Persist the user message immediately (before the Foundry call).
+2. Stream deltas from Foundry while yielding events to the caller.
+3. Persist the assistant message once the stream finishes.
+4. Link the conversation to the Foundry session id (on first turn).
 
 The WS endpoint (:mod:`app.api.ws.chat`) is the only caller.  It iterates
 the returned async iterator, serialises each event, and sends it over the
@@ -24,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.conversation import Conversation
 from app.domain.message import Message
-from app.services.stream_events import StreamEvent
+from app.services.stream_events import StreamEvent, StreamFinal
 
 if TYPE_CHECKING:
     from app.domain.user import User
@@ -48,21 +47,25 @@ class ChatTurnService:
         An open :class:`AsyncSession` (FastAPI's ``get_session`` dependency).
     foundry_client
         The shared :class:`FoundryClient` opened in the FastAPI lifespan.
+    conversation
+        The active :class:`Conversation` row (already resolved by the caller
+        via :class:`ConversationService`).
     """
 
     def __init__(
         self,
         session: AsyncSession,
         foundry_client: FoundryClient,
+        conversation: Conversation,
     ) -> None:
         self._session = session
         self._foundry_client = foundry_client
+        self._conversation = conversation
 
     async def execute(
         self,
         *,
         user: User,
-        conversation: Conversation | None,
         user_message: str,
     ) -> tuple[AsyncIterator[StreamEvent], ChatTurnResult]:
         """Execute a full chat turn.
@@ -71,8 +74,6 @@ class ChatTurnService:
         ----------
         user
             The authenticated end-user (from the JWT dependency).
-        conversation
-            ``None`` → create a new conversation on this first turn.
         user_message
             The raw text sent by the client.
 
@@ -90,19 +91,10 @@ class ChatTurnService:
           is yielded (i.e. after the stream finishes).
         - If an error occurs, no assistant row is inserted.
         """
-        # ------------------------------------------------------------------
-        # 1. Resolve or create the conversation
-        # ------------------------------------------------------------------
-        conv = conversation
-        if conv is None:
-            conv = Conversation(user_id=user.id, title="Nueva conversación")
-            self._session.add(conv)
-            await self._session.flush()
-            # conversation.id is now set (UUID assigned by the DB)
-        # else: ownership verified by WS endpoint before calling here.
+        conv = self._conversation
 
         # ------------------------------------------------------------------
-        # 2. Persist the user message immediately
+        # 1. Persist the user message immediately
         # ------------------------------------------------------------------
         user_msg = Message(
             conversation_id=conv.id,
@@ -115,7 +107,7 @@ class ChatTurnService:
         await self._session.commit()
 
         # ------------------------------------------------------------------
-        # 3. Build the Foundry streaming service
+        # 2. Build the Foundry streaming service
         # ------------------------------------------------------------------
         from app.services.foundry_stream import FoundryStreamService
 
@@ -126,12 +118,39 @@ class ChatTurnService:
                 user_message=user_message,
                 service_session_id=conv.foundry_conversation_id,
             ):
+                # ------------------------------------------------------------------
+                # 3. After the StreamFinal event, link the Foundry session id
+                # ------------------------------------------------------------------
+                if isinstance(event, StreamFinal):
+                    if event.service_session_id is not None:
+                        await self._link_foundry_session(conv, event.service_session_id)
                 yield event
 
         return turn_events(), ChatTurnResult(
             assistant_text="",  # filled in by caller after streaming
             conversation_id=conv.id,
         )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    async def _link_foundry_session(
+        self,
+        conversation: Conversation,
+        foundry_conversation_id: str,
+    ) -> None:
+        """Record the Foundry session id on the conversation row (first turn).
+
+        Idempotent: if the conversation already has this foundry_conversation_id
+        the UPDATE is skipped.
+        """
+        # Only link if not already set.
+        if conversation.foundry_conversation_id is not None:
+            return
+        conversation.foundry_conversation_id = foundry_conversation_id
+        await self._session.flush()
+        await self._session.commit()
 
     # ------------------------------------------------------------------
     # Called by the WS endpoint after the StreamFinal event is received
@@ -156,18 +175,3 @@ class ChatTurnService:
         await self._session.flush()
         await self._session.commit()
         return msg
-
-    async def update_foundry_conversation_id(
-        self,
-        conversation_id: uuid.UUID,
-        foundry_conversation_id: str,
-    ) -> None:
-        """Record the Foundry session id on the conversation (first turn only)."""
-        from sqlalchemy import update
-
-        await self._session.execute(
-            update(Conversation)
-            .where(Conversation.id == conversation_id)
-            .values(foundry_conversation_id=foundry_conversation_id)
-        )
-        await self._session.commit()

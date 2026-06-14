@@ -55,62 +55,8 @@ class FakeAsyncIterator:
             raise StopAsyncIteration
 
 
-class TestCreatesConversationAndMessagesOnFirstTurn:
-    """Tests for first-turn behaviour (no prior conversation)."""
-
-    @pytest.mark.asyncio
-    async def test_creates_conversation_and_messages_on_first_turn(self) -> None:
-        """On the first turn (conversation=None), a new conversation is created."""
-        user = make_fake_user()
-        fake_conv_id = uuid.uuid4()
-
-        # Track what gets added to the session.
-        added_objects: list[object] = []
-
-        fake_session = MagicMock()
-        fake_session.add = lambda obj: added_objects.append(obj)
-        fake_session.flush = AsyncMock()
-        fake_session.commit = AsyncMock()
-
-        # Patch Conversation so its id is assigned immediately.
-        with patch.object(
-            Conversation, "id", new_callable=lambda: property(lambda self: fake_conv_id)
-        ):
-            fake_stream_events = [
-                StreamDelta(delta="Hi "),
-                StreamDelta(delta="there!"),
-                StreamFinal(text="Hi there!", service_session_id="f-sid-001"),
-            ]
-            fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
-
-            fake_foundry_client = MagicMock(spec=FoundryClient)
-
-            service = ChatTurnService(fake_session, fake_foundry_client)
-
-            # Mock FoundryStreamService so it doesn't call the real Foundry.
-            with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
-                mock_instance = MagicMock()
-                mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
-                mock_stream_svc.return_value = mock_instance
-
-                events_iterator, result = await service.execute(
-                    user=user,
-                    conversation=None,
-                    user_message="Hello",
-                )
-
-                # Consume the events.
-                events = []
-                async for ev in events_iterator:
-                    events.append(ev)
-
-                # Verify a Conversation and a Message were added.
-                assert any(isinstance(o, Conversation) for o in added_objects)
-                assert any(isinstance(o, Message) and o.role == "user" for o in added_objects)
-                # Assistant message is NOT persisted here — only after StreamFinal.
-                assert not any(
-                    isinstance(o, Message) and o.role == "assistant" for o in added_objects
-                )
+class TestReusesConversationOnSubsequentTurns:
+    """Tests for conversation reuse (caller passes explicit Conversation)."""
 
     @pytest.mark.asyncio
     async def test_reuses_conversation_on_subsequent_turns(self) -> None:
@@ -132,7 +78,7 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
         fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
         fake_foundry_client = MagicMock(spec=FoundryClient)
 
-        service = ChatTurnService(fake_session, fake_foundry_client)
+        service = ChatTurnService(fake_session, fake_foundry_client, existing_conv)
 
         with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
             mock_instance = MagicMock()
@@ -141,7 +87,6 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
 
             _, result = await service.execute(
                 user=user,
-                conversation=existing_conv,
                 user_message="Second turn",
             )
 
@@ -154,7 +99,7 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
     async def test_persists_user_message_before_streaming(self) -> None:
         """The user message row is committed before the Foundry call starts."""
         user = make_fake_user()
-        fake_conv_id = uuid.uuid4()
+        conv = make_fake_conversation(user.id)
         commit_order: list[str] = []
 
         fake_session = MagicMock()
@@ -171,24 +116,20 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
         fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
         fake_foundry_client = MagicMock(spec=FoundryClient)
 
-        service = ChatTurnService(fake_session, fake_foundry_client)
+        service = ChatTurnService(fake_session, fake_foundry_client, conv)
 
-        with patch.object(
-            Conversation, "id", new_callable=lambda: property(lambda self: fake_conv_id)
-        ):
-            with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
-                mock_instance = MagicMock()
-                mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
-                mock_stream_svc.return_value = mock_instance
+        with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
+            mock_instance = MagicMock()
+            mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
+            mock_stream_svc.return_value = mock_instance
 
-                events_iterator, _ = await service.execute(
-                    user=user,
-                    conversation=None,
-                    user_message="Hello",
-                )
+            events_iterator, _ = await service.execute(
+                user=user,
+                user_message="Hello",
+            )
 
-                async for _ in events_iterator:
-                    pass
+            async for _ in events_iterator:
+                pass
 
         # Flush is called (user message persisted).
         assert "flush" in commit_order
@@ -197,7 +138,7 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
     async def test_persists_assistant_message_after_final_event(self) -> None:
         """The assistant row is inserted only after the StreamFinal event."""
         user = make_fake_user()
-        fake_conv_id = uuid.uuid4()
+        conv = make_fake_conversation(user.id)
 
         added_objects: list[object] = []
 
@@ -213,29 +154,25 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
         fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
         fake_foundry_client = MagicMock(spec=FoundryClient)
 
-        service = ChatTurnService(fake_session, fake_foundry_client)
+        service = ChatTurnService(fake_session, fake_foundry_client, conv)
 
-        with patch.object(
-            Conversation, "id", new_callable=lambda: property(lambda self: fake_conv_id)
-        ):
-            with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
-                mock_instance = MagicMock()
-                mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
-                mock_stream_svc.return_value = mock_instance
+        with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
+            mock_instance = MagicMock()
+            mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
+            mock_stream_svc.return_value = mock_instance
 
-                events_iterator, _ = await service.execute(
-                    user=user,
-                    conversation=None,
-                    user_message="Hello",
-                )
+            events_iterator, _ = await service.execute(
+                user=user,
+                user_message="Hello",
+            )
 
-                async for ev in events_iterator:
-                    if isinstance(ev, StreamFinal):
-                        # Only now does the caller persist the assistant.
-                        await service.persist_assistant_message(
-                            conversation_id=fake_conv_id,
-                            assistant_text=ev.text,
-                        )
+            async for ev in events_iterator:
+                if isinstance(ev, StreamFinal):
+                    # Only now does the caller persist the assistant.
+                    await service.persist_assistant_message(
+                        conversation_id=conv.id,
+                        assistant_text=ev.text,
+                    )
 
         # One user message (during execute) + one assistant message (after final).
         messages = [o for o in added_objects if isinstance(o, Message)]
@@ -248,7 +185,7 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
     async def test_persists_assistant_message_even_on_error(self) -> None:
         """No assistant row is inserted when a StreamError is received."""
         user = make_fake_user()
-        fake_conv_id = uuid.uuid4()
+        conv = make_fake_conversation(user.id)
 
         added_objects: list[object] = []
 
@@ -264,26 +201,22 @@ class TestCreatesConversationAndMessagesOnFirstTurn:
         fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
         fake_foundry_client = MagicMock(spec=FoundryClient)
 
-        service = ChatTurnService(fake_session, fake_foundry_client)
+        service = ChatTurnService(fake_session, fake_foundry_client, conv)
 
-        with patch.object(
-            Conversation, "id", new_callable=lambda: property(lambda self: fake_conv_id)
-        ):
-            with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
-                mock_instance = MagicMock()
-                mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
-                mock_stream_svc.return_value = mock_instance
+        with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
+            mock_instance = MagicMock()
+            mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
+            mock_stream_svc.return_value = mock_instance
 
-                events_iterator, _ = await service.execute(
-                    user=user,
-                    conversation=None,
-                    user_message="Hello",
-                )
+            events_iterator, _ = await service.execute(
+                user=user,
+                user_message="Hello",
+            )
 
-                async for ev in events_iterator:
-                    if isinstance(ev, StreamError):
-                        # Caller would NOT call persist_assistant_message here.
-                        pass
+            async for ev in events_iterator:
+                if isinstance(ev, StreamError):
+                    # Caller would NOT call persist_assistant_message here.
+                    pass
 
         # Only the user message should be persisted — no assistant.
         messages = [o for o in added_objects if isinstance(o, Message)]
@@ -304,3 +237,81 @@ class TestChatTurnResult:
         """ChatTurnResult carries the final assistant text."""
         result = ChatTurnResult(assistant_text="The answer is 42.", conversation_id=uuid.uuid4())
         assert result.assistant_text == "The answer is 42."
+
+
+class TestFoundrySessionLinking:
+    """Tests for the Foundry session id linking behaviour."""
+
+    @pytest.mark.asyncio
+    async def test_links_foundry_session_after_stream_final(self) -> None:
+        """After StreamFinal yields a service_session_id, the conversation is linked."""
+        user = make_fake_user()
+        conv = make_fake_conversation(user.id)
+        assert conv.foundry_conversation_id is None
+
+        fake_session = MagicMock()
+        fake_session.add = lambda obj: None
+        fake_session.flush = AsyncMock()
+        fake_session.commit = AsyncMock()
+
+        fake_stream_events = [
+            StreamDelta(delta="Hi"),
+            StreamFinal(text="Hi there!", service_session_id="f-sid-new"),
+        ]
+        fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
+        fake_foundry_client = MagicMock(spec=FoundryClient)
+
+        service = ChatTurnService(fake_session, fake_foundry_client, conv)
+
+        with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
+            mock_instance = MagicMock()
+            mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
+            mock_stream_svc.return_value = mock_instance
+
+            events_iterator, _ = await service.execute(
+                user=user,
+                user_message="Hello",
+            )
+
+            async for _ in events_iterator:
+                pass
+
+        # After consuming StreamFinal, the conversation's foundry_conversation_id is set.
+        assert conv.foundry_conversation_id == "f-sid-new"
+
+    @pytest.mark.asyncio
+    async def test_does_not_relink_when_session_id_unchanged(self) -> None:
+        """If the conversation already has a foundry_conversation_id, it is not overwritten."""
+        user = make_fake_user()
+        conv = make_fake_conversation(user.id)
+        conv.foundry_conversation_id = "f-sid-existing"
+
+        fake_session = MagicMock()
+        fake_session.add = lambda obj: None
+        fake_session.flush = AsyncMock()
+        fake_session.commit = AsyncMock()
+
+        fake_stream_events = [
+            StreamDelta(delta="Reply."),
+            StreamFinal(text="Reply.", service_session_id="f-sid-existing"),
+        ]
+        fake_stream_iterator = FakeAsyncIterator(fake_stream_events)
+        fake_foundry_client = MagicMock(spec=FoundryClient)
+
+        service = ChatTurnService(fake_session, fake_foundry_client, conv)
+
+        with patch("app.services.foundry_stream.FoundryStreamService") as mock_stream_svc:
+            mock_instance = MagicMock()
+            mock_instance.stream_chat = MagicMock(return_value=fake_stream_iterator)
+            mock_stream_svc.return_value = mock_instance
+
+            events_iterator, _ = await service.execute(
+                user=user,
+                user_message="Second turn",
+            )
+
+            async for _ in events_iterator:
+                pass
+
+        # The existing session id is NOT overwritten.
+        assert conv.foundry_conversation_id == "f-sid-existing"
