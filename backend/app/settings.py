@@ -28,8 +28,8 @@ class Settings(BaseSettings):
         description="Model to use for the agent",
     )
 
-    # Agent version (pin the agent revision in Foundry)
-    agent_version: int = Field(default=1)
+    # Agent version (pin the agent revision in Foundry) — string for Foundry API
+    agent_version_str: str = Field(default="1", validation_alias="AGENT_VERSION")
 
     # App environment
     app_env: str = Field(default="dev")

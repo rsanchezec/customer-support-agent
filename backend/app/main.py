@@ -20,7 +20,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     app = FastAPI(
         title="customer-support-agent",
-        version=str(settings.agent_version),
+        version=settings.agent_version_str,
         lifespan=lifespan,
     )
 
