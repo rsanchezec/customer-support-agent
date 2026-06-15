@@ -32,7 +32,7 @@ The system MUST treat `conversations.foundry_conversation_id` as the server-side
 - THEN the backend clears `foundry_conversation_id` to NULL and creates a fresh session (replaying from persisted `messages` is best-effort; release 1 may start clean and log a warning).
 
 ### Requirement: Streaming primitive
-The system MUST call `agent.run(text, stream=True, session=session)` and iterate the returned `ResponseStream` with `async for update in stream`. Each non-empty `update.text` MUST be forwarded as one `assistant_delta`. After the loop, the system MUST obtain the aggregated text via `await stream.get_final_response()` (or by accumulating deltas) and persist it once.
+The system MUST call `agent.run(text, stream=True, session=session)` and iterate the returned `ResponseStream` with `async for update in stream`. Each non-empty `update.text` MUST be forwarded as one `delta`. After the loop, the system MUST obtain the aggregated text via `await stream.get_final_response()` (or by accumulating deltas) and persist it once.
 
 #### Scenario: Forward deltas
 - GIVEN N deltas from the agent

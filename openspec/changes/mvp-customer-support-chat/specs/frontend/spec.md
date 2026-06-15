@@ -40,12 +40,12 @@ The chat page MUST render: a top bar with user identity and "Nueva conversación
 - THEN the list shows: "Hola, soy el agente de soporte. ¿En qué te puedo ayudar?".
 
 ### Requirement: WebSocket client
-The frontend MUST use the native `WebSocket` API, connect to `wss://<api-host>/ws/chat` (or `ws://` in dev), authenticate via the `bearer.<jwt>` subprotocol, and reconnect with exponential backoff on transient failures. The token MUST NEVER appear in the URL.
+The frontend MUST use the native `WebSocket` API, connect to `wss://<api-host>/ws/chat` (or `ws://` in dev), authenticate via the `bearer.jwt.<token>` subprotocol, and reconnect with exponential backoff on transient failures. The token MUST NEVER appear in the URL.
 
 #### Scenario: Connect with valid token
 - GIVEN a non-expired access token
 - WHEN the page mounts
-- THEN the client opens the WS with `Sec-WebSocket-Protocol: bearer.<jwt>` and accepts the echo.
+- THEN the client opens the WS with `Sec-WebSocket-Protocol: bearer.jwt.<token>` and accepts the echo.
 
 #### Scenario: Reconnect on `1006`
 - GIVEN a transient network drop
@@ -68,7 +68,7 @@ The active `conversation_id` MUST be stored under a versioned key (e.g., `csa:th
 #### Scenario: Resume on refresh
 - GIVEN `localStorage` has `csa:thread_id:v1 = "c-uuid"`
 - WHEN the page mounts
-- THEN the client calls `GET /conversations/c-uuid/messages` and hydrates.
+- THEN the client calls `GET /conversations/c-uuid` and hydrates.
 
 #### Scenario: Stale id reconciled
 - GIVEN the server returns 404
