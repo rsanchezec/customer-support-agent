@@ -1,22 +1,148 @@
+import { useEffect, useState } from "react";
 import { useMsal } from "@azure/msal-react";
+import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
+import { MessageList } from "@/components/MessageList";
+import { Composer } from "@/components/Composer";
+import { useChatWebSocket } from "@/hooks/useChatWebSocket";
+import {
+  createConversation,
+  getConversation,
+  type MessageOut,
+} from "@/lib/api";
+import { acquireAccessToken } from "@/auth/useAccessToken";
 
 export function ChatPage() {
   const { instance, accounts } = useMsal();
   const clearUser = useAuthStore((s) => s.clearUser);
-
   const account = accounts[0];
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [hydrationError, setHydrationError] = useState(false);
+
+  const threadId = useChatStore((s) => s.threadId);
+  const setThreadId = useChatStore((s) => s.setThreadId);
+  const clearChat = useChatStore((s) => s.clearChat);
+  const addOptimisticUserMessage = useChatStore(
+    (s) => s.addOptimisticUserMessage
+  );
+  const setConversationId = useChatStore((s) => s.setConversationId);
+
+  const { connect, send, close, setMounted } = useChatWebSocket();
+
   const handleLogout = () => {
+    close();
     clearUser();
     instance.logoutRedirect().catch(() => {
       // logoutRedirect navigates away
     });
   };
 
+  const handleNewConversation = async () => {
+    try {
+      const token = await acquireAccessToken(instance, accounts);
+      const result = await createConversation(token);
+      clearChat();
+      setThreadId(result.id);
+      setConversationId(result.id);
+      setHydrationError(false);
+    } catch {
+      // Stay on empty state
+    }
+  };
+
+  // Patch sendMessage into the store so Composer can call it
+  useEffect(() => {
+    const origSend = useChatStore.getState().sendMessage;
+    if (origSend === undefined || origSend.toString() === "() => {}") {
+      useChatStore.setState({
+        sendMessage: (content: string) => {
+          const id = addOptimisticUserMessage(content);
+          send(content);
+          void id;
+        },
+      });
+    }
+  }, [addOptimisticUserMessage, send]);
+
+  // Mount: hydrate or create conversation
+  useEffect(() => {
+    setMounted(true);
+    let cancelled = false;
+
+    async function init() {
+      setIsLoading(true);
+      try {
+        const token = await acquireAccessToken(instance, accounts);
+
+        if (threadId) {
+          // Try to resume
+          try {
+            const conv = await getConversation(threadId, token);
+            if (!cancelled) {
+              // Load messages from server
+              const hydrated = conv.messages.map((m: MessageOut) => ({
+                id: m.id,
+                role: m.role as "user" | "assistant",
+                content: m.content,
+                status: "sent" as const,
+              }));
+              useChatStore.setState({
+                messages: hydrated,
+                conversationId: conv.id,
+                foundryConversationId: conv.foundry_conversation_id ?? null,
+              });
+              setConversationId(conv.id, conv.foundry_conversation_id ?? null);
+              setHydrationError(false);
+            }
+          } catch {
+            if (!cancelled) {
+              // 404 — clear and create new
+              clearChat();
+              setThreadId(null);
+              const result = await createConversation(token);
+              setThreadId(result.id);
+              setConversationId(result.id);
+              setHydrationError(false);
+            }
+          }
+        } else {
+          // No thread — create one
+          const result = await createConversation(token);
+          if (!cancelled) {
+            setThreadId(result.id);
+            setConversationId(result.id);
+          }
+        }
+
+        // Connect WebSocket
+        const token2 = await acquireAccessToken(instance, accounts);
+        if (!cancelled) {
+          connect(token2);
+        }
+      } catch {
+        if (!cancelled) {
+          setHydrationError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    init();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
             <span className="text-white text-sm font-medium">
@@ -30,38 +156,51 @@ export function ChatPage() {
             <p className="text-xs text-gray-500">{account?.username}</p>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          Cerrar sesión
-        </button>
-      </header>
-      <main className="flex-1 flex items-center justify-center">
-        <div className="text-center p-8">
-          <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Chat will be available in slice 10
-          </h2>
-          <p className="text-gray-500">
-            Tu sesión está activa. El chat completo llegará en el próximo slice.
-          </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleNewConversation}
+            className="px-3 py-1.5 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            Nueva conversación
+          </button>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cerrar sesión
+          </button>
         </div>
-      </main>
+      </header>
+
+      {/* Loading state */}
+      {isLoading && (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-500 text-sm">Conectando…</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {!isLoading && hydrationError && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+          <p className="text-gray-500 text-sm">
+            No se pudo cargar la conversación.
+          </p>
+          <button
+            onClick={handleNewConversation}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+          >
+            Nueva conversación
+          </button>
+        </div>
+      )}
+
+      {/* Chat area */}
+      {!isLoading && !hydrationError && (
+        <>
+          <MessageList />
+          <Composer />
+        </>
+      )}
     </div>
   );
 }

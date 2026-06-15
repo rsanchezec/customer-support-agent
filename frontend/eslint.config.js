@@ -33,6 +33,12 @@ export default tseslint.config(
         clearInterval: "readonly",
         localStorage: "readonly",
         sessionStorage: "readonly",
+        WebSocket: "readonly",
+        Event: "readonly",
+        MessageEvent: "readonly",
+        CloseEvent: "readonly",
+        HTMLTextAreaElement: "readonly",
+        HTMLDivElement: "readonly",
       },
     },
     plugins: {

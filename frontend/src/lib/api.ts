@@ -1,3 +1,7 @@
+// ---------------------------------------------------------------------------
+// Core fetch helper
+// ---------------------------------------------------------------------------
+
 interface ApiFetchOptions extends RequestInit {
   accessToken?: string;
 }
@@ -60,4 +64,55 @@ export async function apiFetch<T = unknown>(
   }
 
   return response.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Conversation API helpers
+// ---------------------------------------------------------------------------
+
+export interface ConversationOut {
+  id: string;
+  title: string | null;
+  created_at: string;
+}
+
+export interface MessageOut {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface ConversationDetailOut {
+  id: string;
+  title: string | null;
+  foundry_conversation_id: string | null;
+  messages: MessageOut[];
+  created_at: string;
+}
+
+export async function listConversations(
+  accessToken: string
+): Promise<ConversationOut[]> {
+  return apiFetch<ConversationOut[]>("/conversations", { accessToken });
+}
+
+export async function getConversation(
+  id: string,
+  accessToken: string
+): Promise<ConversationDetailOut> {
+  return apiFetch<ConversationDetailOut>(`/conversations/${id}`, {
+    accessToken,
+  });
+}
+
+export async function createConversation(
+  accessToken: string,
+  title?: string
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("/conversations", {
+    accessToken,
+    method: "POST",
+    body: title ? JSON.stringify({ title }) : JSON.stringify({}),
+  });
 }
