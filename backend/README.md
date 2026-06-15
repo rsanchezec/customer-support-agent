@@ -31,6 +31,8 @@ Note: slice 4 (streaming + chat turn) lands in one PR; the chat turn roundtrip t
 
 Note: slice 7 (WebSocket /ws/chat endpoint with subprotocol auth) lands in one PR; the acceptance tests land in a follow-up PR (7.2). Both are required for the WebSocket layer to be considered complete.
 
+Note: slice 8 (REST endpoints for conversation history) lands in one PR; the acceptance tests land in a follow-up PR (8.2). Both are required for the REST API to be considered complete.
+
 ### Lint and format check
 
 ```bash

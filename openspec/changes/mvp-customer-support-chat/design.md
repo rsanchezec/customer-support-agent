@@ -357,7 +357,7 @@ frontend/
 | 5 | REST endpoints | `app/api/conversations.py`, `app/api/messages.py`, `app/api/deps.py`, `app/api/errors.py` | ~110 |
 | 6 | WS + Foundry bridge | `app/services/foundry/__init__.py`, `app/services/foundry/client.py`, `app/services/foundry/stream.py`, `app/services/__init__.py`, `app/services/foundry_stream.py`, `app/services/chat_turn.py`, `app/api/websockets/__init__.py`, `app/api/websockets/chat.py`, `app/main.py` (lifespan) | ~260 |
 | 7 | BE WS endpoint + acceptance tests | `backend/app/api/websockets/chat.py` (slice 7); `backend/tests/api/websockets/test_chat_endpoint.py` (slice 7.2) | ~301 + ~632 |
-| 8 | BE observability + error mapping | `app/logging.py` (extend), `app/api/ws/errors.py` (extend), `app/api/errors.py` (extend) | ~140 |
+| 8 | BE observability + error mapping | `app/logging.py` (extend), `app/api/ws/errors.py` (extend), `app/api/errors.py` (extend); `backend/tests/api/rest/test_conversations.py` (→ slice 8.2) | ~140 |
 | 9 | FE bootstrap | `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `postcss.config.js`, `.env.example`, `vitest.config.ts`, `src/main.tsx`, `src/index.css`, `src/app/App.tsx`, `src/app/router.tsx`, `src/app/msal.ts`, `src/store/auth.ts`, `src/store/chat.ts` (skeleton), `src/components/ui/Button.tsx`, `src/components/ui/Spinner.tsx`, `src/pages/Login.tsx`, `src/lib/errors.ts` | ~280 |
 | 10 | Chat page + WS + persistence | `src/pages/Chat.tsx`, `src/store/ws.ts`, `src/store/chat.ts` (extend), `src/lib/api.ts`, `src/lib/ws.ts`, `src/lib/thread.ts`, `src/components/MessageBubble.tsx`, `src/components/Composer.tsx`, `src/components/ChatList.tsx`, `src/components/TopBar.tsx`, `tests/ws.test.ts`, `tests/chat.test.ts`, `tests/thread.test.ts` | ~320 |
 

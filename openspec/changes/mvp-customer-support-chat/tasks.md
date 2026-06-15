@@ -392,6 +392,8 @@ Chain strategy: TBD
 
 **Estimated changed lines**: ~140
 
+**Note**: `test_conversations.py` was extracted to a follow-up slice 8.2 (commit right after 8) to fit the 600-line budget. REST endpoints and tests land in adjacent PRs; together they are the original slice 8.
+
 ---
 
 ## Slice 9: Frontend Bootstrap (Vite + React 19 + TS + Tailwind v4 + MSAL + Zustand)
