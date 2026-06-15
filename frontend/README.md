@@ -62,7 +62,7 @@ src/
 ├── lib/
 │   ├── env.ts          # Typed env var reader
 │   ├── msalConfig.ts   # PublicClientApplication config
-│   └── api.ts          # Fetch wrapper with Bearer token
+│   └── api.ts          # Fetch wrapper + conversation REST helpers
 ├── auth/
 │   ├── MsalProvider.tsx
 │   ├── ProtectedRoute.tsx
@@ -70,14 +70,20 @@ src/
 │   └── *.test.tsx
 ├── stores/
 │   ├── authStore.ts     # Zustand auth state (persisted)
-│   ├── chatStore.ts     # Zustand chat state (persisted)
+│   ├── chatStore.ts     # Zustand chat state (optimistic messages, delta streaming)
+│   └── *.test.ts
+├── hooks/
+│   ├── useChatWebSocket.ts  # WS client with reconnect backoff + message queue
 │   └── *.test.ts
 ├── pages/
 │   ├── LoginPage.tsx
-│   ├── ChatPage.tsx     # Placeholder until slice 10
+│   ├── ChatPage.tsx     # Full chat UI with WS streaming
 │   └── NotFoundPage.tsx
 ├── components/
-│   └── Spinner.tsx
+│   ├── Spinner.tsx
+│   ├── MessageBubble.tsx   # User/assistant bubbles with streaming spinner
+│   ├── MessageList.tsx     # Auto-scroll message list
+│   └── Composer.tsx        # Auto-resize textarea, Enter to send
 └── test/
     └── setup.ts
 ```
@@ -86,6 +92,5 @@ src/
 
 - Slice 9: 2 component/store tests (ProtectedRoute, authStore)
 - Slice 9.2: 1 smoke test (1 + 1 = 2)
-- Total: 3 tests
-
-More tests will be added in slice 10 (chat UI + WebSocket).
+- Slice 10: 31 component/unit tests (MessageBubble, chatStore, useChatWebSocket, ChatPage)
+- Total: 34 tests

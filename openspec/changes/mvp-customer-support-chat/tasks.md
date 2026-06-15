@@ -503,6 +503,8 @@ Chain strategy: TBD
 
 **Estimated changed lines**: ~320
 
+**Note**: Lock-file changes (`package-lock.json`) from this slice do not count toward the 600-line budget per `sdd/review-budget-exceptions/customer-support-agent`.
+
 ---
 
 ## Commit Plan
