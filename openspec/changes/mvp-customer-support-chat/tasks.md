@@ -452,6 +452,8 @@ Chain strategy: TBD
 
 **Estimated changed lines**: ~280
 
+**Note**: `example.test.ts` was committed as slice 9.2 (right after 9) to fit the 600-line budget. Skeleton and smoke test land in adjacent commits; together they are the original slice 9.
+
 ---
 
 ## Slice 10: Chat Page + WebSocket Client + Persistence Hooks
