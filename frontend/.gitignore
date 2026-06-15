@@ -7,3 +7,8 @@ dist/
 coverage/
 .vscode/
 .idea/
+
+# TypeScript build output (emitted by tsc -b, not by Vite)
+src/**/*.js
+src/**/*.tsbuildinfo
+**/*.tsbuildinfo
