@@ -35,6 +35,7 @@ from app.domain.user import User
 from app.services.conversation_service import ConversationService
 from app.services.stream_events import StreamDelta, StreamError, StreamFinal
 from app.services.user_service import UserService
+from app.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,16 @@ router = APIRouter()
 
 # Maximum allowed content length per user message.
 MAX_CONTENT_LENGTH = 8000
+
+
+# ---------------------------------------------------------------------------
+# Settings helper (patchable in tests)
+# ---------------------------------------------------------------------------
+
+
+def get_settings() -> Settings:
+    """Return the module-level Settings instance."""
+    return Settings()
 
 
 # ---------------------------------------------------------------------------
@@ -84,10 +95,7 @@ async def authenticate_ws(
     except Exception:
         raise ValueError("invalid token")
 
-    # Import Settings lazily to avoid circular imports.
-    from app.settings import Settings
-
-    settings = Settings()
+    settings = get_settings()
 
     try:
         claims = jwt.decode(
@@ -225,8 +233,6 @@ async def ws_chat(
     foundry_client = websocket.app.state.foundry_client
 
     # Get a session for ChatTurnService.
-    from app.db.session import _get_session_factory
-
     session_factory = _get_session_factory()
     async with session_factory() as session:
         from app.services.chat_turn import ChatTurnService
