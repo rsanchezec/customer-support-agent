@@ -3,15 +3,17 @@ import { renderHook } from "@testing-library/react";
 import { useChatStore } from "@/stores/chatStore";
 
 // ---------------------------------------------------------------------------
-// Mock WebSocket factory
+// Shared mock WebSocket — created via vi.hoisted BEFORE the module loads.
+// vi.stubGlobal runs BEFORE the import, so the module-level default
+// wsFactory captures the stubbed WebSocket. All tests share the same mock.
 // ---------------------------------------------------------------------------
 
-const createMockWs = () => {
+const mockWs = vi.hoisted(() => {
   let _readyState = 0;
   const handlers = {
-    onopen: null as ((e: Event) => void) | null,
-    onmessage: null as ((e: MessageEvent) => void) | null,
-    onclose: null as ((e: CloseEvent) => void) | null,
+    onopen: null as ((_e: Event) => void) | null,
+    onmessage: null as ((_e: MessageEvent) => void) | null,
+    onclose: null as ((_e: CloseEvent) => void) | null,
   };
   return {
     get readyState() { return _readyState; },
@@ -29,10 +31,22 @@ const createMockWs = () => {
     _triggerOpen() { _readyState = 1; handlers.onopen?.(new Event("open")); },
     _triggerMessage(data: string) { handlers.onmessage?.(new MessageEvent("message", { data })); },
     _triggerClose(code: number, reason?: string) { _readyState = 3; handlers.onclose?.(new CloseEvent("close", { code, reason })); },
+    _reset() { _readyState = 0; },
   };
-};
+});
 
-type MockWs = ReturnType<typeof createMockWs>;
+// Constructor function that returns mockWs when called with `new`.
+// vi.fn() wraps it as a spy so WebSocket calls are tracked.
+// Must include .OPEN = 1 since the hook checks ws.readyState !== WebSocket.OPEN.
+const MockWebSocketConstructor = vi.fn((..._args: ConstructorParameters<typeof WebSocket>) => {
+  // Capture URL for potential inspection; return the shared mock instance
+  return mockWs;
+});
+(MockWebSocketConstructor as any).OPEN = 1;
+
+vi.stubGlobal("WebSocket", MockWebSocketConstructor as unknown as typeof WebSocket);
+
+import { useChatWebSocket } from "@/hooks/useChatWebSocket";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -41,17 +55,17 @@ type MockWs = ReturnType<typeof createMockWs>;
 describe("useChatWebSocket", () => {
   beforeEach(() => {
     useChatStore.setState({ wsStatus: "idle", messages: [], conversationId: null });
+    // Reset shared mock state between tests to prevent leakage.
+    mockWs.send.mockClear();
+    mockWs.close.mockClear();
+    mockWs._reset();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("creates WebSocket with correct URL and subprotocol", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("creates WebSocket with correct URL and subprotocol", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -62,11 +76,7 @@ describe("useChatWebSocket", () => {
     expect(protocol).toBe("bearer.jwt.fake.token");
   });
 
-  it("sets connecting status when connect is called", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("sets connecting status when connect is called", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -74,11 +84,7 @@ describe("useChatWebSocket", () => {
     expect(useChatStore.getState().wsStatus).toBe("connecting");
   });
 
-  it("sets open status when WebSocket fires open event", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("sets open status when WebSocket fires open event", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -87,11 +93,7 @@ describe("useChatWebSocket", () => {
     expect(useChatStore.getState().wsStatus).toBe("open");
   });
 
-  it("queues messages when WebSocket is not open", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("queues messages when WebSocket is not open", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -100,15 +102,12 @@ describe("useChatWebSocket", () => {
     expect(mockWs.send).not.toHaveBeenCalled();
   });
 
-  it("delivers messages when WebSocket is open", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("delivers messages when WebSocket is open", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
     mockWs._triggerOpen();
+
     result.current.send("Hello");
 
     expect(mockWs.send).toHaveBeenCalledWith(
@@ -116,11 +115,7 @@ describe("useChatWebSocket", () => {
     );
   });
 
-  it("appends delta to the last streaming assistant message", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("appends delta to the last streaming assistant message", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -136,11 +131,7 @@ describe("useChatWebSocket", () => {
     expect(msgs[0].content).toBe("Hola mundo");
   });
 
-  it("sets conversation id on done frame", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("sets conversation id on done frame", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -160,11 +151,7 @@ describe("useChatWebSocket", () => {
     expect(useChatStore.getState().foundryConversationId).toBe("foundry-456");
   });
 
-  it("marks message as failed on error frame", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("marks message as failed on error frame", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -180,11 +167,7 @@ describe("useChatWebSocket", () => {
     expect(msgs.find((m) => m.status === "failed")).toBeDefined();
   });
 
-  it("sets failed status after 1008 close (no reconnect)", async () => {
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
+  it("sets failed status after 1008 close (no reconnect)", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -194,13 +177,9 @@ describe("useChatWebSocket", () => {
     expect(useChatStore.getState().wsStatus).toBe("failed");
   });
 
-  it("schedules reconnect after 1006 with backoff", async () => {
+  it("schedules reconnect after 1006 with backoff", () => {
     vi.useFakeTimers();
 
-    const mockWs = createMockWs();
-    vi.stubGlobal("WebSocket", vi.fn(() => mockWs) as unknown as typeof WebSocket);
-
-    const { useChatWebSocket } = await import("@/hooks/useChatWebSocket");
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
     result.current.connect("fake.token");
@@ -211,6 +190,7 @@ describe("useChatWebSocket", () => {
 
     vi.advanceTimersByTime(1_000);
 
+    // WebSocket constructor is called twice: initial + reconnect.
     expect(vi.mocked(WebSocket)).toHaveBeenCalledTimes(2);
 
     vi.useRealTimers();
