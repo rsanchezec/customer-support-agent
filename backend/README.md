@@ -29,6 +29,8 @@ Note: slice 2a (engine + models + session) lands in one PR; the message-model ro
 
 Note: slice 4 (streaming + chat turn) lands in one PR; the chat turn roundtrip tests land in a follow-up PR (4.2). Both are required for the streaming layer to be considered complete.
 
+Note: slice 7 (WebSocket /ws/chat endpoint with subprotocol auth) lands in one PR; the acceptance tests land in a follow-up PR (7.2). Both are required for the WebSocket layer to be considered complete.
+
 ### Lint and format check
 
 ```bash

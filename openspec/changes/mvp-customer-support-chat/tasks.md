@@ -342,23 +342,26 @@ Chain strategy: TBD
 - `backend/tests/test_ws.py` (~80 lines) — WS handshake, chat turn, disconnect handling
 
 **Tasks**:
-7.1 Create `backend/tests/__init__.py`
-7.2 Create `backend/tests/conftest.py` — `engine` fixture (sqlite+aiosqlite:///:memory:), `session` fixture, `mock_foundry_client` fixture, `fake_jwks_issuer` fixture (RSA key pair, signs valid JWTs), `fake_response_stream` fixture (yields deterministic deltas then completes)
-7.3 Create `backend/tests/test_repositories.py` — test all repository methods: create, get_for_user (including cross-user None), set_foundry_id, append, list, FK cascade delete
-7.4 Create `backend/tests/test_auth.py` — test JWKSFetcher cache hit/miss/TTL, unknown kid refresh, token decode valid/expired/bad-sig/bad-aud, upsert new OID, upsert existing OID
-7.5 Create `backend/tests/test_api.py` — test POST /conversations → 201, GET /conversations/{id}/messages → 200, cross-user → 404, no auth → 401
-7.6 Create `backend/tests/test_ws.py` — test WS handshake echo, missing subprotocol → 1008, bad token → 1008, chat turn with fake stream emits correct frame sequence, disconnect mid-stream → no orphan assistant row
-7.7 Run `uv run pytest --tb=short` and fix any failures
-7.8 Verify `uv run pytest` exit code 0 with all tests passing
+- [x] 7.1 Create `backend/app/api/websockets/__init__.py`
+- [x] 7.2 Create `backend/app/api/websockets/chat.py` — `/ws/chat/{conversation_id}` handler: subprotocol auth (`bearer.jwt.<token>`), JWT validation via `authenticate_ws()`, `ws_settings()` helper, streaming bridge, `ChatTurnService` execution, per-turn message persistence
+- [x] 7.3 Wire `FoundryClient` and `ConversationService` in `backend/app/main.py` lifespan
+- [x] 7.4 Re-export `chat_ws_router` in `backend/app/api/__init__.py`
+- [x] 7.5 Run `uv run pytest --tb=short` and fix any failures
+- [x] 7.6 Verify `uv run pytest` exit code 0 with all tests passing
 
-**Depends on**: 5, 6
+**Depends on**: 5, 5.2 (ConversationService), 6 (Foundry streaming)
 **Acceptance criteria**:
-- `uv run pytest` discovers all tests under `tests/`
-- All tests pass with in-memory SQLite and mocked Foundry
-- No test hits real Entra or real Foundry endpoints
+- WS handshake with `Sec-WebSocket-Protocol: bearer.jwt.<token>` echoes the same subprotocol
+- WS handshake without valid subprotocol → close 1008
+- Valid message → user message persisted before Foundry call
+- Stream deltas → one `delta` frame per non-empty chunk
+- Stream done → exactly one assistant row persisted, `done` frame emitted
+- Client disconnect mid-stream → no orphan assistant row
 - `uv run ruff check .` passes
 
-**Estimated changed lines**: ~220
+**Estimated changed lines**: ~301 (3 files)
+
+**Note**: `test_chat_endpoint.py` was committed as slice 7.2 (right after 7) to fit the 600-line budget. Production code and tests land in adjacent commits; together they are the original slice 7.
 
 ---
 

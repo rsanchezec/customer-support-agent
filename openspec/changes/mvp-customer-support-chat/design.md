@@ -53,41 +53,56 @@ backend/
 │   │   └── errors.py             # DomainError taxonomy
 │   ├── application/
 │   │   └── ports.py              # Protocol[FoundryClient], Protocol[UserRepo] …
-│   ├── infrastructure/
-│   │   ├── db/
-│   │   │   ├── engine.py         # async_engine + PRAGMA listener
-│   │   │   ├── session.py        # async_sessionmaker + get_session dep
-│   │   │   └── models.py         # SQLAlchemy 2.0 typed declarative
-│   │   ├── auth/
-│   │   │   ├── jwks.py           # JWKSFetcher + in-mem TTL cache
-│   │   │   ├── token.py          # PyJWT decode
-│   │   │   ├── service.py        # upsert user by OID
-│   │   │   └── deps.py           # get_current_user FastAPI dep
-│   │   └── foundry/
-│   │       ├── client.py         # AIProjectClient + FoundryAgent wiring
-│   │       └── stream.py         # streaming primitive (wraps agent.run)
 │   ├── api/
-│   │   ├── deps.py               # session + user deps
-│   │   ├── errors.py             # exception → JSON envelope
-│   │   ├── health.py             # GET /healthz
+│   │   ├── __init__.py           # re-exports auth and ws routers
+│   │   ├── auth/
+│   │   │   ├── jwks_fetcher.py  # JwksFetcher + in-mem TTL cache
+│   │   │   ├── deps.py          # get_current_user FastAPI dep
+│   │   │   └── __init__.py
+│   │   ├── websockets/
+│   │   │   ├── chat.py          # /ws/chat/{conversation_id} handler
+│   │   │   └── __init__.py
 │   │   ├── conversations.py      # POST /conversations
-│   │   ├── messages.py           # GET /conversations/{id}/messages
-│   │   └── ws/
-│   │       ├── chat.py           # /ws/chat handler
-│   │       └── errors.py         # WSError enum → close codes
+│   │   ├── messages.py          # GET /conversations/{id}/messages
+│   │   ├── deps.py              # session + user deps
+│   │   ├── errors.py            # exception → JSON envelope
+│   │   └── health.py            # GET /healthz
+│   ├── domain/
+│   │   ├── entities.py          # User, Conversation, Message dataclasses
+│   │   └── errors.py           # DomainError taxonomy
+│   ├── infrastructure/
+│   │   └── db/
+│   │       ├── engine.py        # async_engine + PRAGMA listener
+│   │       ├── session.py       # async_sessionmaker + get_session dep
+│   │       └── models.py        # SQLAlchemy 2.0 typed declarative
 │   ├── repositories/
-│   │   ├── users.py              # upsert_by_oid
-│   │   ├── conversations.py      # create, get_for_user
-│   │   └── messages.py           # append, list
-│   └── services/
-│       ├── foundry_stream.py     # FoundryStreamService.run_and_collect
-│       └── chat_turn.py          # ChatTurnService: persist→run→persist
+│   │   ├── users.py             # upsert_by_oid
+│   │   ├── conversations.py     # create, get_for_user
+│   │   └── messages.py          # append, list
+│   ├── services/
+│   │   ├── foundry/
+│   │   │   ├── client.py       # FoundryClient: AIProjectClient + FoundryAgent
+│   │   │   └── __init__.py
+│   │   ├── foundry_stream.py    # FoundryStreamService.run_and_collect
+│   │   ├── chat_turn.py        # ChatTurnService: persist→run→persist
+│   │   ├── conversation_service.py  # ConversationService lifecycle
+│   │   ├── user_service.py     # UserService.get_or_create_by_oid
+│   │   └── stream_events.py    # StreamDelta, StreamError, StreamFinal
+│   └── settings.py             # pydantic-settings Settings
 └── tests/
-    ├── conftest.py               # in-mem SQLite, mock Foundry, fake JWKS
-    ├── test_repositories.py
-    ├── test_auth.py
-    ├── test_api.py
-    └── test_ws.py
+    ├── api/
+    │   ├── __init__.py
+    │   ├── conftest.py          # RSA keypair, fake JWKS, create_test_token
+    │   ├── test_jwks_fetcher.py
+    │   ├── test_user_service.py
+    │   ├── test_deps.py
+    │   └── websockets/
+    │       ├── __init__.py
+    │       └── test_chat_endpoint.py  # 10 WS acceptance tests
+    └── services/
+        ├── test_conversation_service.py
+        ├── test_foundry_stream.py
+        └── test_chat_turn.py
 ```
 
 **File budget**: every file ≤ 150 lines (clean-arch sizing). The orchestrator (`chat_turn.py`) is the only file allowed to know about both persistence and the bridge. The bridge (`foundry_stream.py`) is the only file that imports `agent_framework` and `azure.ai.projects`.
@@ -340,8 +355,8 @@ frontend/
 | 4 | Repositories | `app/repositories/__init__.py`, `app/repositories/users.py`, `app/repositories/conversations.py`, `app/repositories/messages.py`, `app/application/__init__.py`, `app/application/ports.py`, `app/domain/errors.py` | ~120 |
 | 4-streaming | Foundry Streaming + Chat Turn Orchestrator | `app/services/stream_events.py`, `app/services/foundry_stream.py`, `app/services/chat_turn.py`, `tests/services/test_foundry_stream.py`; `tests/services/test_chat_turn.py` (→ slice 4.2) | ~567 |
 | 5 | REST endpoints | `app/api/conversations.py`, `app/api/messages.py`, `app/api/deps.py`, `app/api/errors.py` | ~110 |
-| 6 | WS + Foundry bridge | `app/infrastructure/foundry/__init__.py`, `app/infrastructure/foundry/client.py`, `app/infrastructure/foundry/stream.py`, `app/services/__init__.py`, `app/services/foundry_stream.py`, `app/services/chat_turn.py`, `app/api/ws/__init__.py`, `app/api/ws/chat.py`, `app/api/ws/errors.py`, `app/main.py` (lifespan), `app/logging.py` (skeleton) | ~260 |
-| 7 | BE tests | `tests/__init__.py`, `tests/conftest.py`, `tests/test_repositories.py`, `tests/test_auth.py`, `tests/test_api.py`, `tests/test_ws.py` | ~220 |
+| 6 | WS + Foundry bridge | `app/services/foundry/__init__.py`, `app/services/foundry/client.py`, `app/services/foundry/stream.py`, `app/services/__init__.py`, `app/services/foundry_stream.py`, `app/services/chat_turn.py`, `app/api/websockets/__init__.py`, `app/api/websockets/chat.py`, `app/main.py` (lifespan) | ~260 |
+| 7 | BE WS endpoint + acceptance tests | `backend/app/api/websockets/chat.py` (slice 7); `backend/tests/api/websockets/test_chat_endpoint.py` (slice 7.2) | ~301 + ~632 |
 | 8 | BE observability + error mapping | `app/logging.py` (extend), `app/api/ws/errors.py` (extend), `app/api/errors.py` (extend) | ~140 |
 | 9 | FE bootstrap | `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `postcss.config.js`, `.env.example`, `vitest.config.ts`, `src/main.tsx`, `src/index.css`, `src/app/App.tsx`, `src/app/router.tsx`, `src/app/msal.ts`, `src/store/auth.ts`, `src/store/chat.ts` (skeleton), `src/components/ui/Button.tsx`, `src/components/ui/Spinner.tsx`, `src/pages/Login.tsx`, `src/lib/errors.ts` | ~280 |
 | 10 | Chat page + WS + persistence | `src/pages/Chat.tsx`, `src/store/ws.ts`, `src/store/chat.ts` (extend), `src/lib/api.ts`, `src/lib/ws.ts`, `src/lib/thread.ts`, `src/components/MessageBubble.tsx`, `src/components/Composer.tsx`, `src/components/ChatList.tsx`, `src/components/TopBar.tsx`, `tests/ws.test.ts`, `tests/chat.test.ts`, `tests/thread.test.ts` | ~320 |
