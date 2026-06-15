@@ -26,8 +26,8 @@ Columns: `id` (UUID v4 PK), `user_id` (UUID v4 FK → `users.id`, indexed), `fou
 
 #### Scenario: Create conversation
 - GIVEN an authenticated user `u-uuid`
-- WHEN the API creates a conversation
-- THEN a row is inserted with `id = <new uuid4>`, `user_id = "u-uuid"`, `foundry_conversation_id = NULL`.
+- WHEN the API creates a conversation via `POST /conversations`
+- THEN a row is inserted with `id = <new uuid4>`, `user_id = "u-uuid"`, `foundry_conversation_id = NULL`, and the response is the full `ConversationDetailOut` (including `messages: []`).
 
 #### Scenario: Link to Foundry thread
 - GIVEN a conversation with `foundry_conversation_id = NULL`

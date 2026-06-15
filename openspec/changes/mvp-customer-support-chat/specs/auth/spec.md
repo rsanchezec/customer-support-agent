@@ -48,7 +48,7 @@ On the first successful validation for a given `oid`, the system MUST create a `
 The system MUST accept the access token only via the `Sec-WebSocket-Protocol` subprotocol. Tokens in the URL query string, cookies, or any other header MUST be rejected.
 
 #### Scenario: Token in subprotocol
-- GIVEN a client opens `/ws/chat` with `Sec-WebSocket-Protocol: bearer.<jwt>`
+- GIVEN a client opens `/ws/chat` with `Sec-WebSocket-Protocol: bearer.jwt.<token>`
 - WHEN the backend accepts
 - THEN it extracts the token from the selected subprotocol, validates, and completes the upgrade.
 

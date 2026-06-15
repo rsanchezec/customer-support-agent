@@ -37,7 +37,7 @@ The system MUST call `agent.run(text, stream=True, session=session)` and iterate
 #### Scenario: Forward deltas
 - GIVEN N deltas from the agent
 - WHEN the backend iterates
-- THEN for each non-empty `update.text` the backend emits exactly one `assistant_delta`; empty updates are skipped.
+- THEN for each non-empty `update.text` the backend emits exactly one `delta`; empty updates are skipped.
 
 #### Scenario: Finalize
 - GIVEN the loop completes
