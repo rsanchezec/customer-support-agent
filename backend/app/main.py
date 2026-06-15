@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth.jwks_fetcher import JwksFetcher
 from app.api.health import router as health_router
+from app.api.rest.conversations import router as conversations_router
 from app.api.websockets.chat import router as chat_ws_router
 from app.db.session import _get_session_factory
 from app.services.conversation_service import ConversationService
@@ -63,6 +64,7 @@ def create_app(settings: Settings) -> FastAPI:
     )
 
     app.include_router(health_router, tags=["health"])
+    app.include_router(conversations_router, tags=["conversations"])
     app.include_router(chat_ws_router, tags=["websockets"])
 
     return app

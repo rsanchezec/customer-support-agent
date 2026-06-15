@@ -213,7 +213,7 @@ class ConversationService:
         row = await session.execute(
             select(Conversation)
             .where(Conversation.user_id == user.id)
-            .order_by(Conversation.created_at.desc())
+            .order_by(Conversation.created_at.desc(), Conversation.id.desc())
             .limit(limit)
         )
         return list(row.scalars().all())

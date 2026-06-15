@@ -10,6 +10,7 @@ from jwt import PyJWK
 
 from app.api.auth.jwks_fetcher import JwksFetcher
 from app.domain.user import User
+from app.services.conversation_service import ConversationService
 from app.services.user_service import UserService
 from app.settings import Settings
 
@@ -43,6 +44,16 @@ def get_user_service(
 
     factory = _get_session_factory()
     return UserService(session_factory=factory)
+
+
+def get_conversation_service(
+    request: Request,
+) -> ConversationService:
+    """Build a ConversationService from the request's session factory."""
+    from app.db.session import _get_session_factory
+
+    factory = _get_session_factory()
+    return ConversationService(session_factory=factory)
 
 
 async def get_current_user(
