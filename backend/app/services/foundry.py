@@ -11,12 +11,13 @@ FastAPI lifespan) and shared across all requests.
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from typing import TYPE_CHECKING
 
 from agent_framework.foundry import FoundryAgent
 from azure.ai.projects.aio import AIProjectClient
-from azure.identity.aio import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 
 from app.services.agent_cache import get_or_resolve
 
@@ -41,11 +42,12 @@ class FoundryClient:
         Foundry project endpoint URL (e.g. ``FOUNDRY_PROJECT_ENDPOINT``).
     agent_name
         Logical name of the deployed agent in Foundry.
-    agent_version
-        String version identifier of the agent (e.g. ``"1"``).
+        agent_version
+        String version identifier of the agent (e.g. ``"1"``). Empty means
+        resolve the latest published version.
     credential
-        Optional async credential. Defaults to :class:`AzureCliCredential`.
-        For production use, swap for ``DefaultAzureCredential``.
+        Optional credential. Defaults to :class:`DefaultAzureCredential`,
+        matching the working Streamlit example.
     """
 
     def __init__(
@@ -53,12 +55,12 @@ class FoundryClient:
         endpoint: str,
         agent_name: str,
         agent_version: str,
-        credential: AzureCliCredential | None = None,
+        credential: object | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.agent_name = agent_name
         self.agent_version = agent_version
-        self._credential = credential or AzureCliCredential()
+        self._credential = credential or DefaultAzureCredential()
         self._client: AIProjectClient | None = None
 
     # ------------------------------------------------------------------
@@ -82,7 +84,11 @@ class FoundryClient:
         if self._client is not None:
             await self._client.close()
             self._client = None
-        await self._credential.close()
+        close = getattr(self._credential, "close", None)
+        if close is not None:
+            result = close()
+            if inspect.isawaitable(result):
+                await result
 
     async def __aenter__(self) -> FoundryClient:
         """Enter the async context manager."""
@@ -122,10 +128,32 @@ class FoundryClient:
             Agent metadata returned by Foundry (includes ``.name`` and
             ``.version``).
         """
-        client = await self._ensure_client()
         resolved_name = name or self.agent_name
-        resolved_version = version or self.agent_version
-        return await get_or_resolve(client, resolved_name, resolved_version)
+        resolved_version = version if version is not None else self.agent_version
+        if resolved_version:
+            client = await self._ensure_client()
+            return await get_or_resolve(client, resolved_name, resolved_version)
+        return await self._resolve_latest_agent(resolved_name)
+
+    async def _resolve_latest_agent(self, agent_name: str) -> AgentVersionDetails:
+        """Resolve the latest published version for an agent."""
+        client = await self._ensure_client()
+        versions: list[AgentVersionDetails] = []
+        async for version in client.agents.list_versions(agent_name=agent_name):
+            versions.append(version)
+
+        if not versions:
+            raise RuntimeError(
+                f"No versions found for agent '{agent_name}'. Publish a version first."
+            )
+
+        def version_key(agent_version: AgentVersionDetails) -> tuple[int, int | str]:
+            try:
+                return (0, int(agent_version.version))
+            except (TypeError, ValueError):
+                return (1, str(agent_version.version))
+
+        return max(versions, key=version_key)
 
     # ------------------------------------------------------------------
     # Invocation
@@ -161,8 +189,9 @@ class FoundryClient:
             The plain-text response from the agent.
         """
         client = await self._ensure_client()
-        resolved_name = agent_name or self.agent_name
-        resolved_version = agent_version or self.agent_version
+        resolved = await self.get_existing_agent(name=agent_name, version=agent_version)
+        resolved_name = resolved.name
+        resolved_version = resolved.version
 
         agent = FoundryAgent(
             project_client=client,

@@ -14,6 +14,7 @@ the WS endpoint never touches the database directly.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -28,6 +29,8 @@ from app.services.stream_events import StreamEvent, StreamFinal
 if TYPE_CHECKING:
     from app.domain.user import User
     from app.services.foundry import FoundryClient
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,12 @@ class ChatTurnService:
         - If an error occurs, no assistant row is inserted.
         """
         conv = self._conversation
+        logger.warning(
+            "[CHAT DEBUG] turn_start conversation_id=%s user_id=%s message_len=%s",
+            conv.id,
+            user.id,
+            len(user_message),
+        )
 
         # ------------------------------------------------------------------
         # 1. Persist the user message immediately
@@ -105,6 +114,11 @@ class ChatTurnService:
         await self._session.flush()
         # Commit so the row is visible even if the stream crashes.
         await self._session.commit()
+        logger.warning(
+            "[CHAT DEBUG] user_message_committed conversation_id=%s message_id=%s",
+            conv.id,
+            user_msg.id,
+        )
 
         # ------------------------------------------------------------------
         # 2. Build the Foundry streaming service
@@ -114,6 +128,11 @@ class ChatTurnService:
         stream_svc = FoundryStreamService(self._foundry_client)
 
         async def turn_events() -> AsyncIterator[StreamEvent]:
+            logger.warning(
+                "[CHAT DEBUG] foundry_iter_start conversation_id=%s foundry_session=%s",
+                conv.id,
+                "yes" if conv.foundry_conversation_id else "no",
+            )
             async for event in stream_svc.stream_chat(
                 user_message=user_message,
                 service_session_id=conv.foundry_conversation_id,
@@ -124,7 +143,16 @@ class ChatTurnService:
                 if isinstance(event, StreamFinal):
                     if event.service_session_id is not None:
                         await self._link_foundry_session(conv, event.service_session_id)
+                logger.warning(
+                    "[CHAT DEBUG] foundry_iter_event conversation_id=%s event_type=%s",
+                    conv.id,
+                    type(event).__name__,
+                )
                 yield event
+            logger.warning(
+                "[CHAT DEBUG] foundry_iter_done conversation_id=%s",
+                conv.id,
+            )
 
         return turn_events(), ChatTurnResult(
             assistant_text="",  # filled in by caller after streaming

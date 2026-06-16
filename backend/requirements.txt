@@ -1,11 +1,11 @@
-azure-ai-projects>=2.1.0
+azure-ai-projects>=2.2.0
 azure-identity
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
-pydantic>=2.10.0
+pydantic==2.12.4
 pydantic-settings>=2.6.0
 python-dotenv>=1.0.0
-agent-framework
+agent-framework>=1.8.0
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
 alembic>=1.13
