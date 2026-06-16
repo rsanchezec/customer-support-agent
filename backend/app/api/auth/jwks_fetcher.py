@@ -35,7 +35,10 @@ class JwksFetcher:
         if self._cache and (now - self._fetched_at) < self._ttl_seconds:
             return self._cache
 
-        client = self._client or httpx.AsyncClient()
+        client = self._client or httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            headers={"User-Agent": "customer-support-agent/1.0"},
+        )
         try:
             response = await client.get(self._jwks_uri)
             response.raise_for_status()
