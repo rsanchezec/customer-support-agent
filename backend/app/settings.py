@@ -47,8 +47,12 @@ class Settings(BaseSettings):
     # When empty, validation is strict (default tenant + audience).
     # When set, any of the listed values is accepted. Useful for local dev
     # with personal MSAs or multi-tenant scenarios.
-    entra_allowed_audiences_raw: str = Field(default="")
-    entra_allowed_issuers_raw: str = Field(default="")
+    entra_allowed_audiences_raw: str = Field(
+        default="", validation_alias="ENTRA_ALLOWED_AUDIENCES"
+    )
+    entra_allowed_issuers_raw: str = Field(
+        default="", validation_alias="ENTRA_ALLOWED_ISSUERS"
+    )
 
     # CORS
     cors_allowed_origins: list[str] = Field(default=["http://localhost:5173"])
