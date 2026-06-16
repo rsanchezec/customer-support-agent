@@ -1,22 +1,40 @@
-"""JWKS fetcher with in-process TTL cache.
+"""JWKS fetcher with in-process TTL cache and hardcoded fallback.
 
-Falls back to a hardcoded JWKS when the live fetch fails (e.g. on Render
-free tier where outbound to login.microsoftonline.com is blocked). The
-hardcoded snapshot is for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33
-and should be rotated every 3-6 months (Microsoft publishes new signing
-keys on a slow cadence).
+Falls back to a hardcoded JWKS snapshot when the live fetch fails. This is
+necessary because Render free tier rate-limits "service-initiated" outbound
+traffic (see https://render.com/docs/free#service-initiated-traffic-threshold)
+and a per-request fetch loop can trigger the threshold and suspend the
+service. The hardcoded snapshot is for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33.
+
+How to refresh the hardcoded snapshot when Microsoft rotates signing keys:
+    1. Run `python example/fetch_jwks.py` (prints paste-ready Python literal)
+    2. Replace the _HARDCODED_JWKS constant below with the output
+    3. git commit + git push — Render redeploys
+
+Microsoft rotates signing keys on a slow cadence (configurable, default ~6
+weeks). For a 1-2 week demo this won't be an issue.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 from typing import Any
 
 import httpx
 
 
-# Hardcoded JWKS snapshot for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33
-# Last fetched: 2026-06-16. Replace when keys rotate (rare).
+logger = logging.getLogger(__name__)
+
+
+# Hardcoded JWKS snapshot for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33.
+# Pinned 2026-06-16. Rotate via example/fetch_jwks.py when Microsoft rotates
+# signing keys. Keys are RSA public keys (modulus n, exponent e) used to
+# verify JWT signatures. They are not secrets — anyone with the JWKS URL
+# can fetch them — but pinning them here means we don't have to hit
+# login.microsoftonline.com on every request (which would trigger Render's
+# service-initiated traffic threshold).
 _HARDCODED_JWKS: dict[str, Any] = {
     "keys": [
         {
@@ -63,60 +81,100 @@ _HARDCODED_JWKS: dict[str, Any] = {
 }
 
 
+# When consecutive fetches fail, expand the cache TTL to avoid hammering
+# the endpoint. After 3 failures in a row we use the hardcoded fallback
+# for at least 5 minutes before retrying the live endpoint.
+_FALLBACK_TTL_SECONDS = 300
+_RETRY_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = (1, 2, 4)
+
+
 class JwksFetcher:
     """Fetches and caches a JWKS from an Entra ID tenant.
 
-    The cache is keyed by kid and has a TTL of *ttl_seconds*.
-    After the TTL expires the next call refetches the full JWKS.
-
-    If the live fetch fails, falls back to a hardcoded snapshot so the
-    service stays available in environments where login.microsoftonline.com
-    is unreachable (e.g. Render free tier outbound restrictions).
+    The cache has a TTL of *ttl_seconds* (default 1h). After the TTL
+    expires the next call refetches the full JWKS with exponential-backoff
+    retries. If all retries fail, the fetcher falls back to a hardcoded
+    snapshot so the service stays available in environments where
+    login.microsoftonline.com is unreliable (e.g. Render free tier
+    rate-limiting outbound traffic).
     """
 
     def __init__(
         self,
         *,
         jwks_uri: str,
-        ttl_seconds: int = 600,
+        ttl_seconds: int = 3600,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._jwks_uri = jwks_uri
         self._ttl_seconds = ttl_seconds
-        self._client = http_client
+        # Reuse one client for the lifetime of the fetcher. Previously
+        # we created a new client per get_keys() call, which was wasteful
+        # and made retry logic awkward.
+        self._client = http_client or httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            headers={"User-Agent": "customer-support-agent/1.0"},
+        )
         self._owns_client = http_client is None
         self._cache: dict[str, Any] = {}
         self._fetched_at: float = 0.0
+        self._using_fallback: bool = False
 
     async def get_keys(self) -> dict[str, Any]:
         """Return the cached JWK set, fetching if the cache is stale or empty."""
         now = time.monotonic()
-        if self._cache and (now - self._fetched_at) < self._ttl_seconds:
+        cache_age = now - self._fetched_at
+        # If we're on the fallback, hold it for at least _FALLBACK_TTL_SECONDS
+        # to avoid hammering the endpoint with retries that we know will fail.
+        effective_ttl = (
+            _FALLBACK_TTL_SECONDS
+            if self._using_fallback
+            else self._ttl_seconds
+        )
+        if self._cache and cache_age < effective_ttl:
             return self._cache
 
-        try:
-            client = self._client or httpx.AsyncClient(
-                timeout=httpx.Timeout(10.0, connect=5.0),
-                headers={"User-Agent": "customer-support-agent/1.0"},
-            )
+        last_error: Exception | None = None
+        for attempt in range(_RETRY_ATTEMPTS):
             try:
-                response = await client.get(self._jwks_uri)
+                response = await self._client.get(self._jwks_uri)
                 response.raise_for_status()
                 jwks = response.json()
-                self._cache = jwks
-                self._fetched_at = now
-                return self._cache
-            finally:
-                if self._owns_client:
-                    await client.aclose()
-        except Exception:
-            # Fallback to hardcoded JWKS so the service stays available
-            # in environments that can't reach login.microsoftonline.com
-            # (e.g. Render free tier). The keys were fetched once and
-            # pinned here; rotate every 3-6 months.
-            self._cache = _HARDCODED_JWKS
+            except Exception as exc:
+                last_error = exc
+                if attempt < _RETRY_ATTEMPTS - 1:
+                    backoff = _RETRY_BACKOFF_SECONDS[attempt]
+                    logger.warning(
+                        "JWKS fetch attempt %d/%d failed (%s), retrying in %ds",
+                        attempt + 1,
+                        _RETRY_ATTEMPTS,
+                        exc,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                continue
+            # Success: update cache and return
+            self._cache = jwks
             self._fetched_at = now
+            if self._using_fallback:
+                logger.info("JWKS live fetch recovered, dropping fallback")
+            self._using_fallback = False
             return self._cache
+
+        # All retries failed. Use hardcoded fallback so the service stays
+        # available. Logged at WARNING so it's visible in Render logs.
+        logger.warning(
+            "JWKS live fetch failed after %d attempts (%s); using hardcoded "
+            "fallback. Service-initiated outbound may be rate-limited by "
+            "Render; check the JWKS endpoint manually if this persists.",
+            _RETRY_ATTEMPTS,
+            last_error,
+        )
+        self._cache = _HARDCODED_JWKS
+        self._fetched_at = now
+        self._using_fallback = True
+        return self._cache
 
     async def aclose(self) -> None:
         """Close the underlying httpx.AsyncClient if we own it."""
@@ -127,3 +185,4 @@ class JwksFetcher:
         """Clear the cache (sync, for use in tests)."""
         self._cache = {}
         self._fetched_at = 0.0
+        self._using_fallback = False
