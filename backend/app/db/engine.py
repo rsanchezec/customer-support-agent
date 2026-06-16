@@ -14,7 +14,7 @@ settings = Settings()
 _engine: AsyncEngine | None = None
 
 
-def _setup_sqlite_pragma(dbapi_conn: object) -> None:
+def _setup_sqlite_pragma(dbapi_conn: object, _connection_record: object) -> None:
     """Enable WAL mode and foreign-key enforcement on new SQLite connections."""
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
@@ -30,7 +30,8 @@ def get_engine() -> AsyncEngine:
             settings.database_url,
             echo=settings.app_env == "dev",
         )
-        event.listen(_engine.sync_engine, "connect", _setup_sqlite_pragma)
+        if settings.database_url.startswith("sqlite"):
+            event.listen(_engine.sync_engine, "connect", _setup_sqlite_pragma)
     return _engine
 
 

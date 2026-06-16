@@ -42,9 +42,9 @@ class TestFoundrySettings:
         assert settings.foundry_model == "gpt-5-mini"
 
     def test_agent_version_str_default(self) -> None:
-        """AGENT_VERSION defaults to '1'."""
+        """AGENT_VERSION defaults to empty string (auto-detect latest)."""
         settings = Settings()
-        assert settings.agent_version_str == "1"
+        assert settings.agent_version_str == ""
 
     def test_agent_version_str_overridden_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """AGENT_VERSION can be overridden via the environment."""

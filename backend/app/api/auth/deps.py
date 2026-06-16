@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 import jwt
@@ -14,6 +15,8 @@ from app.services.conversation_service import ConversationService
 from app.services.user_service import UserService
 from app.settings import Settings
 
+logger = logging.getLogger(__name__)
+
 
 def get_settings() -> Settings:
     """Return the module-level Settings instance."""
@@ -23,6 +26,162 @@ def get_settings() -> Settings:
 def _build_jwks_uri(settings: Settings) -> str:
     """Construct the Entra ID JWKS URI from the tenant ID."""
     return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/v2.0/keys"
+
+
+def _build_jwks_v1_uri(settings: Settings) -> str:
+    """Construct the Entra ID v1 JWKS URI from the tenant ID."""
+    return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/keys"
+
+
+def _accepted_audiences(settings: Settings) -> list[str]:
+    """Return the accepted token audiences for this API."""
+    audiences = [
+        settings.entra_app_audience,
+        *settings.entra_allowed_audiences,
+    ]
+    if settings.entra_client_id:
+        audiences.extend(
+            [
+                settings.entra_client_id,
+                f"api://{settings.entra_client_id}",
+            ]
+        )
+    return list(dict.fromkeys(aud for aud in audiences if aud))
+
+
+def _accepted_issuers(settings: Settings) -> list[str]:
+    """Return accepted Entra issuer formats for v1 and v2 access tokens."""
+    issuers = [*settings.entra_allowed_issuers]
+    if settings.entra_tenant_id:
+        issuers.extend(
+            [
+                f"https://sts.windows.net/{settings.entra_tenant_id}/",
+                f"https://login.microsoftonline.com/{settings.entra_tenant_id}/v2.0",
+            ]
+        )
+    return list(dict.fromkeys(iss for iss in issuers if iss))
+
+
+def _log_invalid_token(reason: str, token: str, settings: Settings, kid: str | None) -> None:
+    """Log non-sensitive token metadata to diagnose local auth configuration."""
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+    except jwt.PyJWTError:
+        claims = {}
+
+    logger.warning(
+        "auth token rejected reason=%s kid=%s aud=%s iss=%s ver=%s scp=%s expected_aud=%s",
+        reason,
+        kid,
+        claims.get("aud"),
+        claims.get("iss"),
+        claims.get("ver"),
+        claims.get("scp"),
+        _accepted_audiences(settings),
+    )
+
+
+async def decode_and_validate_token(
+    token: str,
+    jwks: JwksFetcher,
+    settings: Settings,
+) -> dict:
+    """Validate an Entra access token and return its claims.
+
+    The frontend should request the API scope, but Entra can still issue v1 or
+    v2 access tokens depending on the app manifest. We validate with the
+    configured JWKS first and only fall back to alternate tenant JWKS endpoints
+    if the signing key requires it.
+    """
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+    except jwt.PyJWTError:
+        _log_invalid_token("bad_header", token, settings, None)
+        raise HTTPException(status_code=401, detail="invalid token")
+
+    kid: str | None = unverified_header.get("kid")
+    if not kid:
+        _log_invalid_token("missing_kid", token, settings, None)
+        raise HTTPException(status_code=401, detail="invalid token")
+
+    decode_kwargs: dict = {"algorithms": ["RS256"]}
+    audiences = _accepted_audiences(settings)
+    issuers = _accepted_issuers(settings)
+    if audiences:
+        decode_kwargs["audience"] = audiences
+    if issuers:
+        decode_kwargs["issuer"] = issuers
+
+    saw_matching_kid = False
+    saw_signature_error = False
+
+    def try_decode_with_keys(jwks_keys: dict) -> dict | None:
+        nonlocal saw_matching_kid, saw_signature_error
+
+        for key in jwks_keys.get("keys", []):
+            if key.get("kid") != kid:
+                continue
+
+            saw_matching_kid = True
+            try:
+                pyjwk = PyJWK.from_dict(key)
+                return jwt.decode(token, pyjwk.key, **decode_kwargs)
+            except jwt.ExpiredSignatureError:
+                _log_invalid_token("expired", token, settings, kid)
+                raise HTTPException(status_code=401, detail="token expired")
+            except jwt.InvalidSignatureError:
+                saw_signature_error = True
+                continue
+            except jwt.PyJWTError as exc:
+                _log_invalid_token(type(exc).__name__, token, settings, kid)
+                raise HTTPException(status_code=401, detail="invalid token")
+            except Exception:
+                _log_invalid_token("invalid_jwk", token, settings, kid)
+                raise HTTPException(status_code=401, detail="invalid token")
+
+        return None
+
+    try:
+        configured_keys = await jwks.get_keys()
+    except Exception as exc:
+        logger.warning(
+            "auth jwks fetch failed label=configured error=%s",
+            type(exc).__name__,
+        )
+        _log_invalid_token("jwks_fetch_failed", token, settings, kid)
+        raise HTTPException(status_code=401, detail="invalid token")
+
+    claims = try_decode_with_keys(configured_keys)
+    if claims is not None:
+        return claims
+
+    configured_uri = getattr(jwks, "_jwks_uri", "")
+    for label, uri in (
+        ("v2", _build_jwks_uri(settings)),
+        ("v1", _build_jwks_v1_uri(settings)),
+    ):
+        if uri == configured_uri:
+            continue
+
+        try:
+            alternate_keys = await JwksFetcher(jwks_uri=uri).get_keys()
+        except Exception as exc:
+            logger.warning(
+                "auth jwks fetch failed label=%s error=%s",
+                label,
+                type(exc).__name__,
+            )
+            continue
+
+        claims = try_decode_with_keys(alternate_keys)
+        if claims is not None:
+            return claims
+
+    reason = "invalid_signature" if saw_signature_error else "unknown_kid"
+    if not saw_matching_kid:
+        reason = "unknown_kid"
+    _log_invalid_token(reason, token, settings, kid)
+    raise HTTPException(status_code=401, detail="invalid token")
 
 
 def get_jwks_fetcher(
@@ -80,42 +239,7 @@ async def get_current_user(
     token = authorization[len("Bearer ") :]
     settings = get_settings()
 
-    try:
-        unverified_header = jwt.get_unverified_header(token)
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="invalid token")
-
-    kid: str | None = unverified_header.get("kid")
-    if not kid:
-        raise HTTPException(status_code=401, detail="invalid token")
-
-    jwks_keys = await jwks.get_keys()
-    jwk_dict: dict | None = None
-    for key in jwks_keys.get("keys", []):
-        if key.get("kid") == kid:
-            jwk_dict = key
-            break
-
-    if jwk_dict is None:
-        raise HTTPException(status_code=401, detail="unknown kid")
-
-    try:
-        pyjwk = PyJWK.from_dict(jwk_dict)
-    except Exception:
-        raise HTTPException(status_code=401, detail="invalid token")
-
-    try:
-        claims = jwt.decode(
-            token,
-            pyjwk.key,
-            algorithms=["RS256"],
-            audience=settings.entra_app_audience,
-            issuer=f"https://login.microsoftonline.com/{settings.entra_tenant_id}/v2.0",
-        )
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="token expired")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="invalid token")
+    claims = await decode_and_validate_token(token, jwks, settings)
 
     oid = claims.get("oid")
     if not oid:

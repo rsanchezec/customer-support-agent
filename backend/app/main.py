@@ -38,7 +38,7 @@ def create_app(settings: Settings) -> FastAPI:
 
         # Startup: create ConversationService and attach to app state
         app.state.conversation_service = ConversationService(
-            session_factory=_get_session_factory,
+            session_factory=_get_session_factory(),
         )
 
         yield
@@ -51,7 +51,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     app = FastAPI(
         title="customer-support-agent",
-        version=settings.agent_version_str,
+        version=settings.agent_version_str or "dev",
         lifespan=lifespan,
     )
 

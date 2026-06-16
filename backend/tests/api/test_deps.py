@@ -276,4 +276,4 @@ async def test_raises_401_for_unknown_kid(settings, fake_jwks, fake_user):
             )
 
     assert exc_info.value.status_code == 401
-    assert "unknown kid" in exc_info.value.detail
+    assert "invalid token" in exc_info.value.detail

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     # Agent version (pin the agent revision in Foundry) — string for Foundry API
-    agent_version_str: str = Field(default="1", validation_alias="AGENT_VERSION")
+    agent_version_str: str = Field(default="", validation_alias="AGENT_VERSION")
 
     # App environment
     app_env: str = Field(default="dev")
@@ -43,6 +43,22 @@ class Settings(BaseSettings):
     entra_tenant_id: str = Field(default="")
     entra_client_id: str = Field(default="")
     entra_app_audience: str = Field(default="")
+    # Optional: comma-separated allow-lists for relaxed dev validation.
+    # When empty, validation is strict (default tenant + audience).
+    # When set, any of the listed values is accepted. Useful for local dev
+    # with personal MSAs or multi-tenant scenarios.
+    entra_allowed_audiences_raw: str = Field(default="")
+    entra_allowed_issuers_raw: str = Field(default="")
 
     # CORS
     cors_allowed_origins: list[str] = Field(default=["http://localhost:5173"])
+
+    @property
+    def entra_allowed_audiences(self) -> list[str]:
+        """Parse comma-separated string into a list of audiences."""
+        return [s.strip() for s in self.entra_allowed_audiences_raw.split(",") if s.strip()]
+
+    @property
+    def entra_allowed_issuers(self) -> list[str]:
+        """Parse comma-separated string into a list of issuers."""
+        return [s.strip() for s in self.entra_allowed_issuers_raw.split(",") if s.strip()]
