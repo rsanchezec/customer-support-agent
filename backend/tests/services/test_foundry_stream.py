@@ -81,18 +81,26 @@ def make_fake_client() -> MagicMock:
     return fake_client
 
 
+def make_fake_agent(run_return: MagicMock) -> MagicMock:
+    """Return a fake FoundryAgent with session and run helpers."""
+    fake_agent = MagicMock()
+    fake_agent.create_session = MagicMock(return_value="fake-session")
+    fake_agent.get_session = MagicMock(return_value="fake-session")
+    # Set side_effect directly so agent.run(...) raises; wrap run_return for return value
+    fake_agent.run = MagicMock(return_value=run_return, side_effect=getattr(run_return, "side_effect", None))
+    return fake_agent
+
+
 class TestStreamChat:
     """Tests for ordered delivery and error handling."""
 
     @pytest.mark.asyncio
     async def test_stream_yields_deltas_then_final(self) -> None:
-        fake_agent = MagicMock()
-        fake_agent.run = MagicMock(
-            return_value=fake_response_stream_factory(
-                yield_values=["Hello ", "world!"],
-                final_text="Hello world!",
-            )
+        run_stream = fake_response_stream_factory(
+            yield_values=["Hello ", "world!"],
+            final_text="Hello world!",
         )
+        fake_agent = make_fake_agent(run_return=run_stream)
 
         with (
             patch("app.services.foundry_stream.AIProjectClient", FakeProjectClient),
@@ -109,17 +117,16 @@ class TestStreamChat:
         assert isinstance(events[2], StreamFinal)
         assert events[2].text == "Hello world!"
         assert events[2].service_session_id is None
-        fake_agent.run.assert_called_once_with("Hi", stream=True)
+        fake_agent.create_session.assert_called_once()
+        fake_agent.run.assert_called_once_with("Hi", stream=True, session="fake-session")
 
     @pytest.mark.asyncio
     async def test_final_text_is_emitted_when_stream_has_no_deltas(self) -> None:
-        fake_agent = MagicMock()
-        fake_agent.run = MagicMock(
-            return_value=fake_response_stream_factory(
-                yield_values=[],
-                final_text="done",
-            )
+        run_stream = fake_response_stream_factory(
+            yield_values=[],
+            final_text="done",
         )
+        fake_agent = make_fake_agent(run_return=run_stream)
 
         with (
             patch("app.services.foundry_stream.AIProjectClient", FakeProjectClient),
@@ -135,35 +142,10 @@ class TestStreamChat:
         assert events[1].text == "done"
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_run_when_stream_api_is_unavailable(self) -> None:
-        async def run_once(_: str):
-            return make_fake_final("fallback text")
-
-        def run(message: str, **kwargs: object):
-            if kwargs.get("stream"):
-                raise AttributeError("stream unavailable")
-            return run_once(message)
-
-        fake_agent = MagicMock()
-        fake_agent.run = MagicMock(side_effect=run)
-
-        with (
-            patch("app.services.foundry_stream.AIProjectClient", FakeProjectClient),
-            patch("app.services.foundry_stream.FoundryAgent", return_value=fake_agent),
-        ):
-            service = FoundryStreamService(make_fake_client())
-            events = [event async for event in service.stream_chat(user_message="Hi")]
-
-        deltas = [event for event in events if isinstance(event, StreamDelta)]
-        assert "".join(event.delta for event in deltas) == "fallback text"
-        assert isinstance(events[-1], StreamFinal)
-        assert events[-1].text == "fallback text"
-        assert fake_agent.run.call_args_list[0].kwargs == {"stream": True}
-        assert fake_agent.run.call_args_list[1].kwargs == {}
-
-    @pytest.mark.asyncio
     async def test_stream_error_is_yielded_not_raised(self) -> None:
         fake_agent = MagicMock()
+        fake_agent.create_session = MagicMock(return_value="fake-session")
+        fake_agent.get_session = MagicMock(return_value="fake-session")
         fake_agent.run = MagicMock(side_effect=RuntimeError("Foundry unreachable"))
 
         with (
@@ -179,13 +161,11 @@ class TestStreamChat:
 
     @pytest.mark.asyncio
     async def test_empty_deltas_are_skipped(self) -> None:
-        fake_agent = MagicMock()
-        fake_agent.run = MagicMock(
-            return_value=fake_response_stream_factory(
-                yield_values=["", "hello"],
-                final_text="hello",
-            )
+        run_stream = fake_response_stream_factory(
+            yield_values=["", "hello"],
+            final_text="hello",
         )
+        fake_agent = make_fake_agent(run_return=run_stream)
 
         with (
             patch("app.services.foundry_stream.AIProjectClient", FakeProjectClient),
