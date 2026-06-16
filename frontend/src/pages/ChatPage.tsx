@@ -151,7 +151,7 @@ export function ChatPage() {
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
             <span className="text-white text-sm font-medium">
               {account?.name?.[0] ?? "?"}
@@ -164,7 +164,27 @@ export function ChatPage() {
             <p className="text-xs text-gray-500">{account?.username}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1 justify-center">
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full"
+            title="Agente Foundry: customer-support-agent (gpt-4.1-nano)"
+          >
+            <div className="w-7 h-7 bg-emerald-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-base" aria-label="bot">
+                🤖
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-emerald-900">
+                Atención al cliente
+              </p>
+              <p className="text-[10px] text-emerald-700 leading-none">
+                Asistente virtual · gpt-4.1-nano
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-1 justify-end">
           <button
             onClick={handleNewConversation}
             className="px-3 py-1.5 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
