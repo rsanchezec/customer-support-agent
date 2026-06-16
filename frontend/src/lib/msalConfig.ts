@@ -16,8 +16,5 @@ const msalConfig: Configuration = {
 export const msalInstance = new PublicClientApplication(msalConfig);
 
 export const loginRequest = {
-  scopes: [
-    "User.Read",
-    "api://localhost/api.read",
-  ],
+  scopes: [env.entraApiScope],
 };

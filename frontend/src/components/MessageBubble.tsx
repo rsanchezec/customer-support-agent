@@ -1,5 +1,17 @@
 import type { MessageStatus } from "@/stores/chatStore";
 
+const FILE_CITATION_RE =
+  /[\u25a0\u25aa\u25fc\u25fe\u2606\u2605\u21a9\u21b5\u3010\u3011[\]()]*?(?:filcite|filecite)\S*/gi;
+const CITATION_GLYPHS_RE = /[\u25a0\u25aa\u25fc\u25fe\u2606\u2605\u21a9\u21b5]/g;
+
+function cleanContent(value: string): string {
+  return value
+    .replace(FILE_CITATION_RE, "")
+    .replace(CITATION_GLYPHS_RE, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
@@ -14,6 +26,7 @@ export function MessageBubble({
   onRetry,
 }: MessageBubbleProps) {
   const isUser = role === "user";
+  const visibleContent = role === "assistant" ? cleanContent(content) : content;
 
   return (
     <div
@@ -26,7 +39,7 @@ export function MessageBubble({
             : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
         }`}
       >
-        {content}
+        {visibleContent}
         {status === "streaming" && (
           <span className="inline-block w-2 h-2 bg-gray-400 rounded-full ml-2 animate-pulse" />
         )}

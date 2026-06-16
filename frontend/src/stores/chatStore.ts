@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +44,7 @@ interface ChatState {
   setConversationId: (_id: string | null, _foundryId?: string | null) => void;
   addOptimisticUserMessage: (_content: string) => string;
   appendDelta: (_messageId: string, _delta: string) => void;
+  replaceMessageContent: (_messageId: string, _content: string) => void;
   completeMessage: (_messageId: string, _foundryId?: string) => void;
   failMessage: (_messageId: string) => void;
   sendMessage: (_content: string) => void;
@@ -54,9 +54,7 @@ interface ChatState {
 let messageCounter = 0;
 
 export const useChatStore = create<ChatState>()(
-  persist(
     (set, _get) => ({
-      // Persisted
       threadId: null,
       setThreadId: (id) => set({ threadId: id }),
       clearThreadId: () => set({ threadId: null }),
@@ -102,6 +100,14 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
+      replaceMessageContent: (messageId, content) => {
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === messageId ? { ...m, content } : m
+          ),
+        }));
+      },
+
       completeMessage: (messageId, foundryId) => {
         set((s) => ({
           messages: s.messages.map((m) =>
@@ -133,13 +139,9 @@ export const useChatStore = create<ChatState>()(
       clearChat: () =>
         set({
           messages: [],
+          threadId: null,
           conversationId: null,
           foundryConversationId: null,
         }),
-    }),
-    {
-      name: "chat-thread-id",
-      partialize: (s) => ({ threadId: s.threadId }),
-    }
-  )
+    })
 );

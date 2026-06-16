@@ -11,7 +11,7 @@ export function MessageList() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (wsStatus === "connecting") {
+  if (messages.length === 0 && wsStatus === "connecting") {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-gray-500 text-sm">Conectando…</p>
@@ -19,7 +19,10 @@ export function MessageList() {
     );
   }
 
-  if (wsStatus === "disconnected" || wsStatus === "failed") {
+  if (
+    messages.length === 0 &&
+    (wsStatus === "disconnected" || wsStatus === "failed")
+  ) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-gray-500 text-sm">Sin conexión. Reintentando…</p>

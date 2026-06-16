@@ -4,20 +4,12 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 
 // Use vi.hoisted to share mock references across vi.mock and tests
-const { mockLoginRedirect, mockUseIsAuthenticated, mockUseMsal } = vi.hoisted(
-  () => ({
-    mockLoginRedirect: vi.fn(() => Promise.resolve()),
-    mockUseIsAuthenticated: vi.fn(() => false),
-    mockUseMsal: vi.fn(() => ({
-      instance: { loginRedirect: mockLoginRedirect },
-      accounts: [],
-    })),
-  })
-);
+const { mockUseIsAuthenticated } = vi.hoisted(() => ({
+  mockUseIsAuthenticated: vi.fn(() => false),
+}));
 
 vi.mock("@azure/msal-react", () => ({
   useIsAuthenticated: () => mockUseIsAuthenticated(),
-  useMsal: () => mockUseMsal(),
 }));
 
 const TestChild = () => <div data-testid="protected">protected content</div>;
@@ -27,12 +19,13 @@ describe("ProtectedRoute", () => {
     vi.clearAllMocks();
   });
 
-  it("calls loginRedirect when not authenticated", () => {
+  it("redirects to login when not authenticated", () => {
     mockUseIsAuthenticated.mockReturnValue(false);
 
     render(
       <MemoryRouter initialEntries={["/chat"]}>
         <Routes>
+          <Route path="/login" element={<div>login page</div>} />
           <Route
             path="/chat"
             element={
@@ -45,7 +38,7 @@ describe("ProtectedRoute", () => {
       </MemoryRouter>
     );
 
-    expect(mockLoginRedirect).toHaveBeenCalled();
+    expect(screen.getByText("login page")).toBeInTheDocument();
   });
 
   it("renders children when authenticated", () => {

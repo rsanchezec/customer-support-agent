@@ -26,10 +26,10 @@ function getBackoffMs(attempt: number): number {
 // WS URL builder
 // ---------------------------------------------------------------------------
 
-function buildWsUrl(apiBase: string): string {
+function buildWsUrl(apiBase: string, conversationId: string): string {
   // Convert http(s):// to ws(s)://
   const base = apiBase.replace(/^http/, "ws");
-  return `${base}/ws/chat`;
+  return `${base}/ws/chat/${conversationId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,17 +66,17 @@ export function useChatWebSocket(
   );
 
   const connect = useCallback(
-    async (accessToken: string) => {
+    async (accessToken: string, conversationId: string) => {
       if (!isMountedRef.current) return;
 
       const apiBase =
         import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-      const url = buildWsUrl(apiBase);
+      const url = buildWsUrl(apiBase, conversationId);
 
       updateStore({ wsStatus: "connecting" });
 
-      const subprotocol = `bearer.jwt.${accessToken}`;
-      const ws = wsFactoryRef.current(url, subprotocol);
+      const subprotocols = ["bearer.jwt", `jwt.${accessToken}`];
+      const ws = wsFactoryRef.current(url, subprotocols);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -129,6 +129,9 @@ export function useChatWebSocket(
                 (m) => m.role === "assistant" && m.status === "streaming"
               );
               if (lastAsst) {
+                if (frame.text) {
+                  useChatStore.getState().replaceMessageContent(lastAsst.id, frame.text);
+                }
                 useChatStore.getState().completeMessage(
                   lastAsst.id,
                   frame.foundry_conversation_id
@@ -150,6 +153,9 @@ export function useChatWebSocket(
                 (m) => m.role === "assistant" && m.status === "streaming"
               );
               if (lastAsst) {
+                if (!lastAsst.content && frame.message) {
+                  useChatStore.getState().appendDelta(lastAsst.id, frame.message);
+                }
                 useChatStore.getState().failMessage(lastAsst.id);
               }
               break;
@@ -183,7 +189,7 @@ export function useChatWebSocket(
           updateStore({ wsStatus: "disconnected" });
           retryTimerRef.current = setTimeout(() => {
             if (isMountedRef.current) {
-              connect(accessToken).catch(() => {
+              connect(accessToken, conversationId).catch(() => {
                 // connect handles its own state
               });
             }

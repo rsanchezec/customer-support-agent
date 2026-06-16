@@ -68,18 +68,18 @@ describe("useChatWebSocket", () => {
   it("creates WebSocket with correct URL and subprotocol", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
 
     expect(vi.mocked(WebSocket)).toHaveBeenCalledOnce();
     const [url, protocol] = vi.mocked(WebSocket).mock.calls[0]!;
-    expect(url).toContain("/ws/chat");
-    expect(protocol).toBe("bearer.jwt.fake.token");
+    expect(url).toContain("/ws/chat/conv-123");
+    expect(protocol).toEqual(["bearer.jwt", "jwt.fake.token"]);
   });
 
   it("sets connecting status when connect is called", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
 
     expect(useChatStore.getState().wsStatus).toBe("connecting");
   });
@@ -87,7 +87,7 @@ describe("useChatWebSocket", () => {
   it("sets open status when WebSocket fires open event", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
 
     expect(useChatStore.getState().wsStatus).toBe("open");
@@ -96,7 +96,7 @@ describe("useChatWebSocket", () => {
   it("queues messages when WebSocket is not open", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     result.current.send("Hello");
 
     expect(mockWs.send).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe("useChatWebSocket", () => {
   it("delivers messages when WebSocket is open", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
 
     result.current.send("Hello");
@@ -118,7 +118,7 @@ describe("useChatWebSocket", () => {
   it("appends delta to the last streaming assistant message", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
 
     useChatStore.setState({
@@ -134,7 +134,7 @@ describe("useChatWebSocket", () => {
   it("sets conversation id on done frame", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
 
     useChatStore.setState({
@@ -154,7 +154,7 @@ describe("useChatWebSocket", () => {
   it("marks message as failed on error frame", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
 
     useChatStore.setState({
@@ -170,7 +170,7 @@ describe("useChatWebSocket", () => {
   it("sets failed status after 1008 close (no reconnect)", () => {
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
     mockWs._triggerClose(1008, "auth");
 
@@ -182,7 +182,7 @@ describe("useChatWebSocket", () => {
 
     const { result } = renderHook(() => useChatWebSocket());
     result.current.setMounted(true);
-    result.current.connect("fake.token");
+    result.current.connect("fake.token", "conv-123");
     mockWs._triggerOpen();
     mockWs._triggerClose(1006, "transient");
 

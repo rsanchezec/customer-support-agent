@@ -1,6 +1,5 @@
-import { useIsAuthenticated, useMsal } from "@azure/msal-react";
-import { Outlet } from "react-router-dom";
-import { loginRequest } from "@/lib/msalConfig";
+import { useIsAuthenticated } from "@azure/msal-react";
+import { Navigate, Outlet } from "react-router-dom";
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -8,13 +7,9 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = useIsAuthenticated();
-  const { instance } = useMsal();
 
   if (!isAuthenticated) {
-    instance.loginRedirect(loginRequest).catch(() => {
-      // loginRedirect will navigate away; ignore errors
-    });
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   return children ? <>{children}</> : <Outlet />;

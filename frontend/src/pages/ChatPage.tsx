@@ -46,6 +46,9 @@ export function ChatPage() {
       setThreadId(result.id);
       setConversationId(result.id);
       setHydrationError(false);
+      close();
+      setMounted(true);
+      connect(token, result.id);
     } catch {
       // Stay on empty state
     }
@@ -53,20 +56,21 @@ export function ChatPage() {
 
   // Patch sendMessage into the store so Composer can call it
   useEffect(() => {
-    const origSend = useChatStore.getState().sendMessage;
-    if (origSend === undefined || origSend.toString() === "() => {}") {
-      useChatStore.setState({
-        sendMessage: (content: string) => {
-          const id = addOptimisticUserMessage(content);
-          send(content);
-          void id;
-        },
-      });
-    }
+    useChatStore.setState({
+      sendMessage: (content: string) => {
+        const userMessageId = addOptimisticUserMessage(content);
+        useChatStore.getState().completeMessage(userMessageId);
+        useChatStore.getState().appendDelta(`stream-${Date.now()}`, "");
+        send(content);
+      },
+    });
   }, [addOptimisticUserMessage, send]);
 
   // Mount: hydrate or create conversation
   useEffect(() => {
+    localStorage.removeItem("chat-thread-id");
+    localStorage.removeItem("chat-thread-id-v2");
+
     setMounted(true);
     let cancelled = false;
 
@@ -74,11 +78,13 @@ export function ChatPage() {
       setIsLoading(true);
       try {
         const token = await acquireAccessToken(instance, accounts);
+        let activeConversationId: string | null = threadId;
 
         if (threadId) {
           // Try to resume
           try {
             const conv = await getConversation(threadId, token);
+            activeConversationId = conv.id;
             if (!cancelled) {
               // Load messages from server
               const hydrated = conv.messages.map((m: MessageOut) => ({
@@ -101,6 +107,7 @@ export function ChatPage() {
               clearChat();
               setThreadId(null);
               const result = await createConversation(token);
+              activeConversationId = result.id;
               setThreadId(result.id);
               setConversationId(result.id);
               setHydrationError(false);
@@ -109,6 +116,7 @@ export function ChatPage() {
         } else {
           // No thread — create one
           const result = await createConversation(token);
+          activeConversationId = result.id;
           if (!cancelled) {
             setThreadId(result.id);
             setConversationId(result.id);
@@ -117,8 +125,8 @@ export function ChatPage() {
 
         // Connect WebSocket
         const token2 = await acquireAccessToken(instance, accounts);
-        if (!cancelled) {
-          connect(token2);
+        if (!cancelled && activeConversationId) {
+          connect(token2, activeConversationId);
         }
       } catch {
         if (!cancelled) {
