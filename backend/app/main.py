@@ -20,8 +20,10 @@ def _build_jwks_uri(settings: Settings) -> str:
     return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/v2.0/keys"
 
 
-def create_app(settings: Settings) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Build and configure the FastAPI application."""
+    if settings is None:
+        settings = Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
