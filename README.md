@@ -577,28 +577,237 @@ Los fixtures de test del backend usan SQLite en memoria con `aiosqlite` y mockea
 
 ## Despliegue
 
-> La release 1 no incluye pipeline de CI ni IaC (ver `openspec/specs/delivery/spec.md`). Esta sección describe el target, no un proceso automatizado.
+> Esta sección documenta el deploy real del demo: frontend en Vercel y backend en Render. Reemplaza las recomendaciones genéricas de Azure que estaban en versiones anteriores del README.
 
-### Backend — opciones recomendadas
+### Opciones consideradas
 
-- **Azure Container Apps** o **Azure App Service (Linux, Python 3.12)**. Imagen basada en `python:3.12-slim` con `uv` instalado; comando de arranque: `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000`.
-- **Managed Identity** asignada al recurso para que `DefaultAzureCredential` se autentique contra Foundry sin secretos. Eliminar `az login` del flujo de runtime.
-- **Variables de entorno** configuradas vía App Settings (App Service) o secretos de Container Apps. `DATABASE_URL` apunta al driver async de la base de datos destino.
-- **Base de datos**:
-  - Dev: SQLite (`sqlite+aiosqlite:///./app.db`) con WAL + FK enforcement.
-  - Prod: `postgresql+asyncpg://<user>:<pwd>@<host>:5432/<db>` (Azure Database for PostgreSQL Flexible Server recomendado). El esquema no requiere cambios; las migraciones se aplican con `uv run alembic upgrade head` desde un job de release o como `command` en el contenedor.
+| Opción | Costo | Pros | Contras | Decisión |
+|---|---|---|---|---|
+| **Azure App Service B1** | ~$13/mes (prorrateado a horas) | Integración nativa con Entra, red abierta, WebSockets OK, Managed Identity sin secretos, control fino sobre el plan | Costo mensual fijo incluso para un demo, requiere tarjeta de crédito y suscripción Azure activa | **Rechazado para el demo**. Viable como target de producción si el proyecto continúa |
+| **Render.com (Free)** | $0/mes | HTTPS automático, deploy desde GitHub, soporta WebSockets, env vars por UI, health checks | Sleep a los 15 min de inactividad, cold start ~30s, almacenamiento efímero (SQLite se pierde) | **Elegido para el backend del demo** |
+| **Fly.io (Free)** | $0/mes (con créditos limitados) | Máquinas cerca del usuario, WebSockets, `fly secrets` por CLI | Free tier cambió de política varias veces, sleep también, menos familiar para el equipo | No seleccionado — Render ya cubre lo necesario |
+| **Railway.app** | $5 crédito/mes (después se cobra por uso) | Deploy simple, soporta procesos largos, buen DX | $5 crédito alcanza solo para un servicio muy ligero, requiere tarjeta | No seleccionado — Render es $0 y suficiente |
 
-### Frontend — opciones recomendadas
+### Decisión final: Vercel (FE) + Render (BE)
 
-- **Azure Static Web Apps** o **Azure App Service (Linux, Node static)**. Build: `npm ci && npm run build`. Artefacto: `frontend/dist/`.
-- `VITE_API_BASE_URL` debe apuntar al HTTPS público del backend.
-- Configurar el **redirect URI** de la App Registration para que coincida con el dominio de producción.
+**Frontend en Vercel.** Vercel es ideal para una SPA Vite: build automático desde GitHub, CDN global, HTTPS automático, dominio `*.vercel.app` gratuito, y variables de entorno expuestas al cliente vía prefijo `VITE_`. No hay servidor que mantener ni procesos que reiniciar.
 
-### Foundry
+**Backend NO en Vercel.** Vercel Functions es serverless con timeout máximo de 60s en plan hobby y no soporta conexiones WebSocket de larga duración. El backend de este proyecto mantiene un socket abierto por turno de chat, así que Vercel queda descartado para el BE.
 
-- El proyecto Foundry debe tener publicado el agente (`customer-support-agent` o el nombre que se pase en `AZURE_AI_AGENT_NAME`) con al menos una versión estable.
-- El `FOUNDRY_PROJECT_ENDPOINT` se copia desde la página "Project details" del portal de Foundry.
-- La identidad del backend (Managed Identity o service principal de `az login`) debe tener rol **Azure AI User** (o equivalente) sobre el proyecto.
+**Backend en Render.** Render permite correr un proceso Uvicorn continuo, soporta WebSockets, y tiene health checks que reaniman el servicio tras el sleep. El free tier es $0/mes, suficiente para un demo de 1-2 semanas. La limitación principal es el sleep a los 15 min (mitigable con un ping externo cada 10-14 minutos).
+
+### Frontend en Vercel — paso a paso
+
+1. **Crear el proyecto en Vercel**
+   - Ir a [vercel.com/new](https://vercel.com/new).
+   - "Import Git Repository" → autorizar GitHub → seleccionar `customer-support-agent`.
+   - **Project Name**: `customer-support-agent` (define el subdominio `*.vercel.app`).
+2. **Configurar el build**
+   - **Root Directory**: `frontend` (editar desde el selector "Edit" al lado del campo; este paso es el que más se olvida).
+   - **Build Command**: `npm run build` (default de Vite).
+   - **Output Directory**: `dist` (default de Vite).
+   - **Install Command**: `npm install` (default).
+3. **Setear las variables de entorno** (sección "Environment Variables"):
+
+| Key | Value (demo actual) | Descripción |
+|---|---|---|
+| `VITE_ENTRA_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant de Entra |
+| `VITE_ENTRA_CLIENT_ID` | `85b8f05c-7a9e-4c18-bfd0-281a5521c391` | Client ID del App Registration del FE |
+| `VITE_ENTRA_API_SCOPE` | `api://customer-support-agent/access_as_user` | Scope delegado que pide MSAL al hacer login |
+| `VITE_ENTRA_REDIRECT_URI` | `https://customer-support-agent-omega.vercel.app` | Debe coincidir exactamente con el Redirect URI configurado en el App Registration |
+| `VITE_API_BASE_URL` | `https://customer-support-agent-api-1h5k.onrender.com` | URL del backend en Render (sin slash final) |
+
+   Marcar las casillas **Production**, **Preview** y **Development** para que apliquen a los tres entornos.
+
+4. **Crear `frontend/vercel.json`** para que las rutas de React Router no devuelvan 404 al refrescar (`/chat/abc-123` debe servir `index.html` y dejar que el router resuelva):
+
+   ```json
+   {
+     "rewrites": [
+       { "source": "/(.*)", "destination": "/index.html" }
+     ]
+   }
+   ```
+
+5. **Deploy**. Click "Deploy". Vercel clona el repo, instala, ejecuta `npm run build` y publica el bundle en la CDN. Builds típicos tardan 40-60s.
+6. **Deploys automáticos**. Cada `git push` a `main` dispara un deploy de producción. Los PRs desde otras ramas generan deploys de preview con URL propia (útil para QA antes de mergear).
+7. **URL final**: `https://customer-support-agent-omega.vercel.app`.
+
+### App Registration del Frontend en Microsoft Entra ID
+
+La SPA de Vercel se autentica contra esta App Registration. Datos del demo actual:
+
+- **Nombre**: `Customer Support Agent - Frontend`
+- **Application (client) ID**: `85b8f05c-7a9e-4c18-bfd0-281a5521c391`
+- **Directory (tenant) ID**: `4922a12a-f1fd-40bc-affe-c63dc44acc33`
+- **Application ID URI**: `api://customer-support-agent` (URI custom legible, no el GUID default)
+- **Scope expuesto**: `api://customer-support-agent/access_as_user`
+  - **Who can consent**: `Admins and users` (permite que cualquier usuario del tenant haga consent sin intervención de un admin)
+  - **Admin consent display name**: `Access Customer Support Agent API`
+  - **Admin consent description**: `Allow the app to access the Customer Support Agent API on behalf of the signed-in user`
+- **Redirect URI (Single-page application)**: `https://customer-support-agent-omega.vercel.app`
+
+**Pasos para crearlo en Azure Portal** (Microsoft Entra ID → App registrations → New registration):
+
+1. **Name**: `Customer Support Agent - Frontend`. Supported account types: `Accounts in this organizational directory only` (single tenant).
+2. **Redirect URI**: platform `Single-page application`, valor `https://customer-support-agent-omega.vercel.app`. Guardar.
+3. **Expose an API** → "Set the Application ID URI" → reemplazar el `api://<guid>` default por `api://customer-support-agent`.
+4. **Expose an API** → "Add a scope":
+   - Scope name: `access_as_user`
+   - Who can consent: `Admins and users`
+   - Admin consent display name / description: los de arriba.
+5. **API permissions**: ya viene con `User.Read` de Microsoft Graph por default. No requiere Grant admin consent porque el scope `access_as_user` se expone a sí mismo.
+6. (Opcional) **Authentication** → agregar también `http://localhost:5173` como Redirect URI SPA para desarrollo local.
+
+### Backend en Render — paso a paso
+
+1. **Crear el Web Service**
+   - Ir a [dashboard.render.com](https://dashboard.render.com) → New → Web Service.
+   - "Connect a repository" → autorizar GitHub → seleccionar `customer-support-agent`.
+2. **Configurar el servicio**
+   - **Name**: `customer-support-agent-api`
+   - **Root Directory**: `backend`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**:
+     ```bash
+     alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT
+     ```
+     El `&&` es deliberado: si las migraciones fallan, uvicorn NO arranca y Render detecta el fallo y reintenta el deploy, en lugar de servir una app con esquema desactualizado que crashea en la primera query.
+   - **Instance Type**: `Free`
+   - **Health Check Path**: `/healthz`
+3. **Setear las variables de entorno** (sección "Environment"):
+
+| Key | Value de ejemplo | Descripción |
+|---|---|---|
+| `FOUNDRY_PROJECT_ENDPOINT` | `https://<name>.services.ai.azure.com/api/projects/<proj>` | Endpoint del proyecto Foundry (copiar de "Project details" en el portal de Foundry) |
+| `AZURE_AI_AGENT_NAME` | `customer-support-agent` | Nombre del agente publicado en Foundry |
+| `AGENT_VERSION` | *(vacío)* | Vacío = tomar la última versión publicada automáticamente |
+| `FOUNDRY_MODEL` | `gpt-5-mini` | Modelo de referencia (lo lee el cliente Foundry) |
+| `APP_ENV` | `prod` | Desactiva el `echo` de SQLAlchemy |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./app.db` | Para el demo alcanza con SQLite; ver advertencia sobre disco efímero abajo |
+| `ENTRA_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant de Entra (para construir la JWKS URI) |
+| `ENTRA_CLIENT_ID` | `85b8f05c-7a9e-4c18-bfd0-281a5521c391` | Client ID de la SPA (se usa como audience) |
+| `ENTRA_APP_AUDIENCE` | `api://customer-support-agent` | Audience esperado en el JWT |
+| `CORS_ALLOWED_ORIGINS` | `https://customer-support-agent-omega.vercel.app` | Único origen permitido en producción |
+| `AZURE_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant para `ClientSecretCredential` (mismo que la SPA) |
+| `AZURE_CLIENT_ID` | `<service-principal-client-id>` | Client ID del SP `customer-support-agent-backend` (ver sección siguiente) |
+| `AZURE_CLIENT_SECRET` | `<service-principal-secret>` | Secret del SP (ver sección siguiente) |
+
+4. **Deploy**. Click "Create Web Service". Render clona el repo, instala dependencias, aplica migraciones y arranca uvicorn. El primer deploy tarda 2-3 min (instalación de `agent-framework` prerelease + `azure-ai-projects`).
+5. **URL final**: `https://customer-support-agent-api-1h5k.onrender.com`.
+
+> El flag `--factory` le dice a uvicorn que llame a `create_app()` para obtener la instancia, en lugar de buscar un símbolo `app` a nivel de módulo. Esto es necesario porque `create_app` toma un `Settings` opcional y la forma factoría permite override en tests.
+
+### Service Principal para Foundry
+
+En local, `az login` provee las credenciales que `DefaultAzureCredential` usa para hablar con Foundry. En Render no hay sesión interactiva: hay que darle al backend un Service Principal (SP) con permisos explícitos sobre el proyecto Foundry.
+
+**Crear el SP en Azure Portal**:
+
+1. **App registrations** → New registration:
+   - **Name**: `customer-support-agent-backend`
+   - **Supported account types**: `Accounts in this organizational directory only` (single tenant)
+   - **Redirect URI**: dejar vacío (es un SP, no un cliente interactivo).
+2. **Certificates & secrets** → New client secret:
+   - **Description**: `render-deploy-2026-06` (con fecha para trackear rotaciones)
+   - **Expires**: 90 días (recomendado; rotar antes de que expire)
+   - **Copiar el `Value` del secret** (no el `Secret ID`). Una vez que se cierra el panel, el value no se vuelve a mostrar.
+3. **Asignar el rol sobre el proyecto Foundry**:
+   - Ir al recurso del Foundry project en el portal de Azure.
+   - **Access Control (IAM)** → **Add role assignment**.
+   - **Role**: `Azure AI Developer` (o `Azure AI User` si el primero no aparece en la suscripción).
+   - **Members**: buscar `customer-support-agent-backend` y seleccionarlo.
+   - **Review + assign**.
+
+**Las 3 env vars resultantes** van en la sección Environment de Render (ya listadas en la tabla anterior como `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`). `DefaultAzureCredential` las detecta y arma un `ClientSecretCredential` automáticamente, sin código adicional.
+
+### Issues encontrados durante el deploy (y cómo se resolvieron)
+
+Cronología de los bugs que aparecieron al llevar el código desde local a Render, y los fixes aplicados:
+
+**1. `alembic upgrade head` falla con `ModuleNotFoundError: No module named 'app'`**
+
+Causa: Alembic no encontraba el paquete `app` para importar los modelos durante la migración. El `cwd` de Render para el comando de build es `backend/` (gracias a Root Directory), pero `alembic.ini` no estaba agregando ese directorio al `sys.path` de Python.
+
+Fix: en `backend/alembic.ini` ya existía la línea `prepend_sys_path = .` (línea 12), pero estaba comentada con `#` por default. Se descomentó y Alembic pasó a prepender el directorio actual al `sys.path` antes de importar `app.*`.
+
+**2. `create_app() missing 1 required positional argument: 'settings'`**
+
+Causa: el start command de Render usaba `uvicorn app.main:create_app --factory`, que invoca la factoría sin pasarle argumentos. La firma original era `create_app(settings: Settings)` (sin default), por lo que la llamada fallaba en runtime.
+
+Fix: hacer `settings` opcional con default `None`, y dentro de la función instanciar `Settings()` si llega como `None` (ver `app/main.py` líneas 23-26). Esto permite usar la factoría tanto en producción (sin args, lee de env vars) como en tests (con un `Settings` mockeado).
+
+**3. `ENTRA_ALLOWED_AUDIENCES` no se leía del environment**
+
+Causa: `pydantic-settings` mapea el nombre de la variable al nombre del field por convención snake_case → UPPER_SNAKE. El field "lógico" del código se llama `entra_allowed_audiences` (porque expone una `@property` que parsea el string CSV en una lista), pero pydantic intentaba leer `ENTRA_ALLOWED_AUDIENCES` como un `list[str]`, no como el raw string CSV. El parseo silenciosamente se ignoraba y la variable quedaba vacía en runtime, así que la validación de JWT rechazaba audiences válidos.
+
+Fix: agregar un field interno `entra_allowed_audiences_raw: str = Field(default="", validation_alias="ENTRA_ALLOWED_AUDIENCES")` que lee el string crudo, y mantener la `@property` `entra_allowed_audiences` que lo parsea en lista. Mismo patrón aplicado a `entra_allowed_issuers` (ver `app/settings.py` líneas 50-55).
+
+**4. JWKS fetch falla con `HTTPStatusError` repetido en Render**
+
+Síntoma: las requests al backend empezaban a tirar `httpx.HTTPStatusError` al intentar refrescar la JWKS cada hora (TTL del cache). Tras varios minutos con errores, Render suspendía el servicio.
+
+Causa: el plan free de Render impone un umbral de tráfico "service-initiated" (outbound originado en el servicio, no en respuestas a requests de usuarios). El fetch periódico de JWKS contra `login.microsoftonline.com` cruza ese umbral y Render marca el servicio como excedido y lo suspende. Doc: <https://render.com/docs/free#service-initiated-traffic-threshold>.
+
+**5. Solución: JWKS hardcodeado como fallback + retry con backoff exponencial**
+
+Refactor de `JwksFetcher` (`app/api/auth/jwks_fetcher.py`) con estrategia de 3 niveles:
+
+1. **Live fetch con retry**: `httpx.AsyncClient` reutilizado (uno por fetcher, no por request como antes), 3 intentos con backoff `(1s, 2s, 4s)`.
+2. **Fallback a JWKS hardcodeado**: si los 3 intentos fallan, se sirve una snapshot pinneada en código (constante `_HARDCODED_JWKS`). Las claves no son secretos — son públicas, están en el endpoint de discovery — pero pinnerlas evita el hit saliente que dispara el rate limit de Render.
+3. **TTL extendido en fallback**: una vez en modo fallback, no se reintenta el live fetch durante 5 minutos (constante `_FALLBACK_TTL_SECONDS`) para no cruzar el umbral de Render.
+
+Resultado: el servicio sigue respondiendo incluso cuando Render bloquea el outbound. La única forma de que el backend devuelva `401` por este motivo es que Microsoft haya rotado las signing keys y la snapshot pinneada esté desactualizada (ver Operación continua para el refresh).
+
+### Operación continua
+
+#### Refresh del JWKS hardcodeado
+
+**Cuándo**: Microsoft rota las signing keys del tenant cada ~6 semanas. Pasado ese tiempo, la snapshot pinneada en `jwks_fetcher.py` queda desactualizada y los JWT nuevos se firman con un `kid` que no está en la snapshot. El síntoma es: el frontend autentica OK (MSAL hace su parte), pero el backend devuelve `401 InvalidSignatureError` con un `kid` distinto al de la snapshot.
+
+**Cómo refrescar** (5 minutos):
+
+1. Desde local (o cualquier máquina con Python 3.12+):
+   ```bash
+   python example/fetch_jwks.py
+   ```
+   El script toma el tenant ID por default (`4922a12a-f1fd-40bc-affe-c63dc44acc33`). Para otro tenant: `python example/fetch_jwks.py <tenant-id>`. Opcionalmente, escribir el JSON crudo a un archivo con `--out jwks.json`.
+2. Copiar la salida (un literal de Python que empieza con `_HARDCODED_JWKS: dict[str, Any] = ...`) y reemplazar la constante correspondiente en `backend/app/api/auth/jwks_fetcher.py`. Actualizar también el comentario de fecha (`# Pinned YYYY-MM-DD`).
+3. `git commit` + `git push` a `main` → Render redeploya automáticamente en 2-3 min.
+
+Para un demo de 1-2 semanas, es poco probable que haga falta.
+
+#### Rotar el `AZURE_CLIENT_SECRET` del SP
+
+**Cuándo**: cada 90 días (vencimiento por default del secret) o antes si el secret quedó expuesto en un log, screenshot, chat, commit, etc. La rotación no requiere recrear el SP: solo se genera un secret nuevo y se reemplaza el viejo.
+
+**Cómo**:
+
+1. Azure Portal → App registrations → `customer-support-agent-backend` → Certificates & secrets → New client secret. **Expires**: 180 días (o lo que requiera la política de la organización).
+2. Copiar el `Value` del nuevo secret.
+3. Render → `customer-support-agent-api` → Environment → editar `AZURE_CLIENT_SECRET`, pegar el nuevo valor, Save. Render redeploya automáticamente.
+4. Una vez verificado que el nuevo secret funciona (login + chat OK), eliminar el secret viejo desde el mismo panel (botón "..." → Delete) para no acumular credenciales activas.
+
+#### Apagar / eliminar el Web Service de Render
+
+Cuando termine el demo, conviene liberar el servicio (el plan Free no cobra, pero Render sigue manteniendo el slot reservado y puede mandar reminders de "servicio inactivo"):
+
+- **Suspender temporalmente**: Settings → "Suspend Service". El servicio queda pausado, no se cobra nada, y se puede reanudar desde la misma pantalla. Los datos en disco (SQLite) se pierden al suspender.
+- **Eliminar definitivamente**: Settings → "Delete Service" → escribir el nombre del servicio para confirmar. El slot se libera y el subdominio `*.onrender.com` deja de resolver. La acción es irreversible.
+
+> **Importante**: SQLite en Render free vive en almacenamiento efímero. Al suspender, redesplegar o cambiar de plan, `app.db` se borra y los usuarios pierden el historial de conversaciones. Para un demo de 1-2 semanas es aceptable; para algo más serio, migrar a un Postgres externo (Neon, Supabase, Azure Postgres) y actualizar `DATABASE_URL` a `postgresql+asyncpg://...`.
+
+#### Cold starts en Render free
+
+Render free pone el servicio a dormir tras 15 minutos sin tráfico entrante. La primera request después de ese período tarda ~30 segundos en "despertar" (Render la mantiene esperando mientras arranca el proceso, pero el cliente ve un timeout o un error 502/504 si su timeout HTTP es menor a 30s).
+
+Mitigaciones posibles:
+
+- **Ping externo cada 10-14 minutos** desde un cron (UptimeRobot gratis, GitHub Actions con `cron`, etc.) contra `/healthz`. El servicio nunca duerme y los cold starts desaparecen. Trade-off: el servicio siempre activo consume un poco más del free tier.
+- **Aceptar el cold start** como parte del demo: la primera interacción muestra un spinner con "Reconectando…", el `useChatWebSocket` del FE tiene backoff exponencial y reintenta solo.
+
+Para una demo en vivo, abrir el chat 1-2 minutos antes de la presentación para evitar el primer-arranque frío en vivo frente al cliente.
 
 ---
 
