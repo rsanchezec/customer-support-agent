@@ -34,11 +34,16 @@ Fill in `.env.local` with values from your Azure Entra app registration:
 
 ```
 VITE_ENTRA_TENANT_ID=<your-tenant-id>
+# For a public demo with "Any Entra ID tenant + personal Microsoft accounts":
+# VITE_ENTRA_AUTHORITY=https://login.microsoftonline.com/common
 VITE_ENTRA_CLIENT_ID=<your-client-id>
 VITE_ENTRA_API_SCOPE=api://<your-client-id>/access_as_user
 VITE_ENTRA_REDIRECT_URI=http://localhost:5173
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+If `VITE_ENTRA_AUTHORITY` is omitted, the app signs users into the specific
+tenant from `VITE_ENTRA_TENANT_ID`.
 
 The app uses MSAL React with `loginRedirect`. After login it lands on `/chat`.
 

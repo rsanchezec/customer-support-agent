@@ -4,7 +4,7 @@ import { env } from "./env";
 const msalConfig: Configuration = {
   auth: {
     clientId: env.entraClientId,
-    authority: `https://login.microsoftonline.com/${env.entraTenantId}`,
+    authority: env.entraAuthority,
     redirectUri: env.entraRedirectUri,
   },
   cache: {
