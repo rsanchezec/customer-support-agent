@@ -800,6 +800,46 @@ git push origin main
 
 Para un demo de 1-2 semanas, es poco probable que haga falta.
 
+#### Onboarding de usuarios (quién puede usar el chat)
+
+El acceso al chat está controlado por Microsoft Entra ID en el lado del FE. El BE no maneja registro de usuarios — solo valida los JWTs que el FE le manda. Así que la respuesta a "¿quién puede entrar?" vive 100% en Azure.
+
+**Setup actual**: la app registration del FE (`Customer Support Agent - Frontend`) está configurada como **"Single tenant — My organization only"**. Eso significa que **solo usuarios que ya existan en tu tenant** (`4922a12a-f1fd-40bc-affe-c63dc44acc33`) pueden loguearse.
+
+Hay dos formas de dar acceso:
+
+##### Opción A — Agregar usuarios específicos al tenant (single-tenant)
+
+Útil si querés controlar uno por uno quién entra.
+
+1. **Azure Portal** → **Microsoft Entra ID** → **Users** → **+ New user**.
+2. Elegí tipo:
+   - **Create new user** → para gente de tu organización. Llenas email, nombre, password auto-generada.
+   - **Invite external user** → para gente de otra empresa. Les llega un mail con link de aceptación, pueden usar su cuenta Microsoft existente.
+3. Una vez que el usuario tiene cuenta en tu tenant, puede ir a `https://customer-support-agent-omega.vercel.app` y loguearse.
+
+##### Opción B — Multi-tenant (recomendado para el demo)
+
+Más fácil para demos: cualquier persona con cuenta Microsoft (work, school o personal como @outlook.com / @hotmail.com) puede entrar sin que tengas que agregarla a tu tenant.
+
+1. **Azure Portal** → **App registrations** → **`Customer Support Agent - Frontend`** → **Authentication**.
+2. En **"Supported account types"**, cambiá de "Single tenant" a una de:
+   - **Multitenant** → solo cuentas de organizaciones registradas en Entra ID (excluye cuentas personales tipo @outlook.com).
+   - **Multitenant and personal Microsoft accounts** → cualquiera, incluidas cuentas personales. Es la opción más abierta.
+3. **Save**. Listo. Ya pueden entrar.
+4. **El BE no necesita cambios**: el `aud` del token sigue siendo `api://customer-support-agent`, que ya está en `ENTRA_ALLOWED_AUDIENCES` del backend.
+
+##### Comparación y recomendación
+
+| | Opción A (single-tenant) | Opción B (multi-tenant) |
+|---|---|---|
+| **Setup por usuario** | Manual cada vez | Una vez y todos entran |
+| **Para demo a N clientes** | Tedioso si N > 3 | Una vez, escalás a cualquier N |
+| **Para producción** | Más seguro, controlado | Requiere Conditional Access, MFA, allowlist, etc. |
+| **Audit de quién entró** | Cada usuario es nativo del tenant | Necesita layer extra (Application Insights, log analytics) |
+
+**Recomendación para el demo actual**: Opción B con **"Multitenant and personal Microsoft accounts"**. Setup de 30 segundos, todos los clientes pueden probar con su propia cuenta. Después del demo, si querés cerrar el acceso, volvés a "Single tenant" en el mismo panel.
+
 #### Rotar el `AZURE_CLIENT_SECRET` del SP
 
 **Cuándo**: cada 90 días (vencimiento por default del secret) o antes si el secret quedó expuesto en un log, screenshot, chat, commit, etc. La rotación no requiere recrear el SP: solo se genera un secret nuevo y se reemplaza el viejo.
