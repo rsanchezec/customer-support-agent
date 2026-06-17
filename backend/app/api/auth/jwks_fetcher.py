@@ -1,15 +1,15 @@
-"""JWKS fetcher with in-process TTL cache and hardcoded fallback.
+"""JWKS fetcher with in-process TTL cache and JSON snapshot fallback.
 
-Falls back to a hardcoded JWKS snapshot when the live fetch fails. This is
-necessary because Render free tier rate-limits "service-initiated" outbound
-traffic (see https://render.com/docs/free#service-initiated-traffic-threshold)
-and a per-request fetch loop can trigger the threshold and suspend the
-service. The hardcoded snapshot is for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33.
+Falls back to a JWKS snapshot loaded from `jwks_snapshot.json` (same dir)
+when the live fetch fails. This is necessary because Render free tier
+rate-limits "service-initiated" outbound traffic (see
+https://render.com/docs/free#service-initiated-traffic-threshold) and a
+per-request fetch loop can trigger the threshold and suspend the service.
 
-How to refresh the hardcoded snapshot when Microsoft rotates signing keys:
-    1. Run `python example/fetch_jwks.py` (prints paste-ready Python literal)
-    2. Replace the _HARDCODED_JWKS constant below with the output
-    3. git commit + git push — Render redeploys
+How to refresh the snapshot when Microsoft rotates signing keys:
+    1. Run `python example/fetch_jwks.py --write` (updates the JSON file)
+    2. `git diff backend/app/api/auth/jwks_snapshot.json` to review changes
+    3. `git commit + git push` — Render redeploys
 
 Microsoft rotates signing keys on a slow cadence (configurable, default ~6
 weeks). For a 1-2 week demo this won't be an issue.
@@ -18,8 +18,10 @@ weeks). For a 1-2 week demo this won't be an issue.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -28,61 +30,45 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-# Hardcoded JWKS snapshot for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33.
-# Pinned 2026-06-16. Rotate via example/fetch_jwks.py when Microsoft rotates
-# signing keys. Keys are RSA public keys (modulus n, exponent e) used to
-# verify JWT signatures. They are not secrets — anyone with the JWKS URL
-# can fetch them — but pinning them here means we don't have to hit
-# login.microsoftonline.com on every request (which would trigger Render's
-# service-initiated traffic threshold).
-_HARDCODED_JWKS: dict[str, Any] = {
-    "keys": [
-        {
-            "kty": "RSA",
-            "use": "sig",
-            "kid": "cYovdPYWG6Wi4m9upkiJFv0-K_k",
-            "x5t": "cYovdPYWG6Wi4m9upkiJFv0-K_k",
-            "n": "oF7hyLvRZlWKRB9PRg8ZXZfs37XFsMQG30Ihv4uhC3GK3hBUHRbF9t46exQHronUMCGvO418qng5qXVP-mvfyAkzS-v_kgEix8Oq205h43gsSvk_YBCZBH1nxjT8GLcbRI4uXpzfopmuYXbYEXfFkKCh7TBz1oIjnP43nMqi8LHCzUUiHA9EWYLMGS8pu1iNjntW0dbd3R78ybBVfps-hwZNLWEQjxPI2lUy7fycAyafQQE1xvtF4Rf5m9D6pByQu3b-hudXhDcfR97ubix2trL8EUz5jqTs20PIQ8p-r5aVbsllfZENaXcQLGIgwIL_q76iACMgI-krJBCg8YXZ-w",
-            "e": "AQAB",
-        },
-        {
-            "kty": "RSA",
-            "use": "sig",
-            "kid": "wh06sEkzLHJ5sNNaUyRY2_6O8K0",
-            "x5t": "wh06sEkzLHJ5sNNaUyRY2_6O8K0",
-            "n": "vOPjy3R_ACXnxYPAVvvQiXWl4Saa7fagNNf5q53Bb5Pj1o2TtY4cTiRooFDvpKeE-FVrC0ZclenTOiTPvgJqxHQnxCTBBZYRQ9UF7KDf3fFAAUnn4HsLQRir6dwb-E5GRG4T7i_y3pzAGun5QFsA9-eNLRucDfGpONcxhujoCTMnfqo6ac2h6BUQqlWza9Ko8wEeTHmzGlkr5bCqJXI4vtjcapQlCpvs5DSTpxWMwbHU-h-jIDsI97wIIlIn-jkmkbhUp7PZdlrot9-LBsVD3ZUyPD2poLmr161QW5i4lOEn4lhxfRtEmn9d6C0N0SQXCp5pk-kA15gyNZavP3n5sQ",
-            "e": "AQAB",
-        },
-        {
-            "kty": "RSA",
-            "use": "sig",
-            "kid": "k2MRQ8fu3BbJrTPLnDOyWDq1m60",
-            "x5t": "k2MRQ8fu3BbJrTPLnDOyWDq1m60",
-            "n": "kuZEJyH4lGC6nsedsIaeO4i1_-_Xv6aJU4uXVGzYhfwi1Cc0hKqdQ_ITktP6Cyfos-UPbXO6FEv6VwF2I88cnWrV1riiFIS9L99r8YuSh5z260hdJewk9wwtLlZ54RrfOoLqESgEiBSWVwHyCJEwV0kUSFsU1TEFOZPFYeHJBQXSASS6t4V2hPHgpKiQ-_3E7WS6XlPMQGXGcKa7P4Feo4yo5Ut6h4xKdGny5fFCvOQHjDbn4HGDa_Aup8435n6A9rlK_bsf_z-uirXOQX7-YTaLex5KrurGNJU6Yi3tC87-eziipo8H8D0hJW1yteHm7n5VdfOYUEMNI7zcSBLPnQ",
-            "e": "AQAB",
-        },
-        {
-            "kty": "RSA",
-            "use": "sig",
-            "kid": "aFkmKVFc-4WV6sXCBvNZkXI505Y",
-            "x5t": "aFkmKVFc-4WV6sXCBvNZkXI505Y",
-            "n": "okYm9VU3RbibMexFuFthuBL7vG5a2UUtHaUpBZOLOogVhpWZYIiHedAOhb2oeZvdUVHcqsSckZLnUBqnzK-UfjWG9fep_hY-jPQRgpsF5SUp8M8d-fvbAqn25O0STfGFBB2lz6vVurnd7MskkhD_K8a0OfyKzEw03ncN4vXekn7-Sn-yCHQoHQYxKIHJaCjxBlP6Jj3kMwMy93Pz6gSep4CbtGdIRGqmzDTc0tAz9MNEnenptTTOkNgXO4a__bIE-pqRCFCuU7tLHbJCxbVe9kE_QtrZG7ERzssJCHWKIhCmyB8v3LWx8zZIYritNp34aV_8UZVSqf-JVsJgfQixOQ",
-            "e": "AQAB",
-        },
-        {
-            "kty": "RSA",
-            "use": "sig",
-            "kid": "Xt33b5Me9iaL3_mKDW6EfTCTJkI",
-            "x5t": "Xt33b5Me9iaL3_mKDW6EfTCTJkI",
-            "n": "ntVetG6jtU9jEUWOb72tiOoaPK8S1fgJ0EWwb72dQ7WYbz4oOGguKI2J6hygTnM4JCpLRWvPVUtDpmns391naHEWRHXgTYHinb3kzjPaBW7R40m1RAbW2SwnZR_rQDDMgI6XcnGA5481Nu8VqIEePScCiGrgBiFgAxWpVOLnkgzXmgBcmtafnYkYeA6V4UfDBhkQLcOt2FXmi4Jlm6J95qeHf42KZtWDpGUliJnQDRlwu3ZscDzlAHIf1yUTlCb7VcYcnhjyGxUUbFXvbif2M1gJ2D4UKmLN6Pp07tYBNM6CX3A8rjrUWTOaFCqkwWODx6dGPk9g-8qFymY-SU5Piw",
-            "e": "AQAB",
-        },
-    ]
-}
+# Path to the bundled JWKS snapshot. Loaded once at module import.
+_SNAPSHOT_PATH = Path(__file__).parent / "jwks_snapshot.json"
+
+
+def _load_snapshot() -> dict[str, Any]:
+    """Load the bundled JWKS snapshot from disk.
+
+    Returns an empty dict (no keys) if the file is missing or invalid, so
+    the service still starts but every token will fail validation. The
+    WARNING log makes this failure mode obvious in Render logs.
+    """
+    try:
+        with _SNAPSHOT_PATH.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        logger.warning(
+            "JWKS snapshot file not found at %s; "
+            "token validation will fail until you restore it.",
+            _SNAPSHOT_PATH,
+        )
+        return {"keys": []}
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "JWKS snapshot file at %s is invalid JSON (%s); "
+            "token validation will fail until you fix it.",
+            _SNAPSHOT_PATH,
+            exc,
+        )
+        return {"keys": []}
+    # Strip the metadata key we add for humans; PyJWT only needs the keys array.
+    return {"keys": data.get("keys", [])}
+
+
+# Loaded once at import. Used as fallback when the live fetch fails.
+_SNAPSHOT_JWKS: dict[str, Any] = _load_snapshot()
 
 
 # When consecutive fetches fail, expand the cache TTL to avoid hammering
-# the endpoint. After 3 failures in a row we use the hardcoded fallback
+# the endpoint. After 3 failures in a row we use the bundled snapshot
 # for at least 5 minutes before retrying the live endpoint.
 _FALLBACK_TTL_SECONDS = 300
 _RETRY_ATTEMPTS = 3
@@ -94,10 +80,10 @@ class JwksFetcher:
 
     The cache has a TTL of *ttl_seconds* (default 1h). After the TTL
     expires the next call refetches the full JWKS with exponential-backoff
-    retries. If all retries fail, the fetcher falls back to a hardcoded
-    snapshot so the service stays available in environments where
-    login.microsoftonline.com is unreliable (e.g. Render free tier
-    rate-limiting outbound traffic).
+    retries. If all retries fail, the fetcher falls back to the bundled
+    snapshot (jwks_snapshot.json) so the service stays available in
+    environments where login.microsoftonline.com is unreliable (e.g. Render
+    free tier rate-limiting outbound traffic).
     """
 
     def __init__(
@@ -162,16 +148,18 @@ class JwksFetcher:
             self._using_fallback = False
             return self._cache
 
-        # All retries failed. Use hardcoded fallback so the service stays
+        # All retries failed. Use the bundled snapshot so the service stays
         # available. Logged at WARNING so it's visible in Render logs.
+        num_keys = len(_SNAPSHOT_JWKS.get("keys", []))
         logger.warning(
-            "JWKS live fetch failed after %d attempts (%s); using hardcoded "
-            "fallback. Service-initiated outbound may be rate-limited by "
-            "Render; check the JWKS endpoint manually if this persists.",
+            "JWKS live fetch failed after %d attempts (%s); using bundled "
+            "snapshot (%d keys). Service-initiated outbound may be rate-limited "
+            "by Render; check the JWKS endpoint manually if this persists.",
             _RETRY_ATTEMPTS,
             last_error,
+            num_keys,
         )
-        self._cache = _HARDCODED_JWKS
+        self._cache = _SNAPSHOT_JWKS
         self._fetched_at = now
         self._using_fallback = True
         return self._cache
