@@ -755,26 +755,48 @@ Causa: el plan free de Render impone un umbral de tráfico "service-initiated" (
 Refactor de `JwksFetcher` (`app/api/auth/jwks_fetcher.py`) con estrategia de 3 niveles:
 
 1. **Live fetch con retry**: `httpx.AsyncClient` reutilizado (uno por fetcher, no por request como antes), 3 intentos con backoff `(1s, 2s, 4s)`.
-2. **Fallback a JWKS hardcodeado**: si los 3 intentos fallan, se sirve una snapshot pinneada en código (constante `_HARDCODED_JWKS`). Las claves no son secretos — son públicas, están en el endpoint de discovery — pero pinnerlas evita el hit saliente que dispara el rate limit de Render.
+2. **Fallback a snapshot pinneada en JSON**: si los 3 intentos fallan, se sirve una snapshot guardada en `backend/app/api/auth/jwks_snapshot.json` (cargada al import del módulo). Las claves no son secretos — son públicas, están en el endpoint de discovery — pero pinnerlas evita el hit saliente que dispara el rate limit de Render.
 3. **TTL extendido en fallback**: una vez en modo fallback, no se reintenta el live fetch durante 5 minutos (constante `_FALLBACK_TTL_SECONDS`) para no cruzar el umbral de Render.
 
 Resultado: el servicio sigue respondiendo incluso cuando Render bloquea el outbound. La única forma de que el backend devuelva `401` por este motivo es que Microsoft haya rotado las signing keys y la snapshot pinneada esté desactualizada (ver Operación continua para el refresh).
 
 ### Operación continua
 
-#### Refresh del JWKS hardcodeado
+#### Refresh del JWKS snapshot
 
-**Cuándo**: Microsoft rota las signing keys del tenant cada ~6 semanas. Pasado ese tiempo, la snapshot pinneada en `jwks_fetcher.py` queda desactualizada y los JWT nuevos se firman con un `kid` que no está en la snapshot. El síntoma es: el frontend autentica OK (MSAL hace su parte), pero el backend devuelve `401 InvalidSignatureError` con un `kid` distinto al de la snapshot.
+**Por qué hay una snapshot en JSON**: el JWKS se guarda en `backend/app/api/auth/jwks_snapshot.json` (no inline en el `.py`) para que sea fácil de revisar en `git diff` cuando se refresca. Las claves son públicas — están en el endpoint de discovery de Microsoft — pero las pinneamos en código para evitar el rate limit de Render free tier.
 
-**Cómo refrescar** (5 minutos):
+**Cuándo refrescar**: Microsoft rota las signing keys del tenant cada ~6 semanas. Pasado ese tiempo, la snapshot pinneada queda desactualizada y los JWT nuevos se firman con un `kid` que no está en la snapshot. El síntoma es: el frontend autentica OK (MSAL hace su parte), pero el backend devuelve `401 InvalidSignatureError` con un `kid` distinto al de la snapshot. En el log de Render aparecerán líneas tipo `JWKS live fetch failed after 3 attempts; using bundled snapshot (N keys)`.
 
-1. Desde local (o cualquier máquina con Python 3.12+):
-   ```bash
-   python example/fetch_jwks.py
-   ```
-   El script toma el tenant ID por default (`4922a12a-f1fd-40bc-affe-c63dc44acc33`). Para otro tenant: `python example/fetch_jwks.py <tenant-id>`. Opcionalmente, escribir el JSON crudo a un archivo con `--out jwks.json`.
-2. Copiar la salida (un literal de Python que empieza con `_HARDCODED_JWKS: dict[str, Any] = ...`) y reemplazar la constante correspondiente en `backend/app/api/auth/jwks_fetcher.py`. Actualizar también el comentario de fecha (`# Pinned YYYY-MM-DD`).
-3. `git commit` + `git push` a `main` → Render redeploya automáticamente en 2-3 min.
+**Cómo refrescar** (5 minutos, todo desde local):
+
+```bash
+# 1. Traés el JWKS actualizado de Microsoft y sobreescribís el JSON
+python example/fetch_jwks.py --write
+#    Output:
+#      Fetched 5 key(s) from tenant 4922a12a-...
+#      Wrote snapshot to backend/app/api/auth/jwks_snapshot.json
+
+# 2. Revisás qué cambió (diff humano, antes de commitear)
+git diff backend/app/api/auth/jwks_snapshot.json
+#    Si ves líneas verdes con kid nuevo → MS agregó una key
+#    Si ves líneas rojas → MS sacó una key
+#    Si no ves nada → no hay cambios, no sigas
+
+# 3. Si te cierra el cambio, commiteás y pusheás
+git commit -am "chore(be): refresh JWKS snapshot"
+git push origin main
+#    Render auto-detecta el push y redeploya (~1 min)
+```
+
+**El JSON tiene un header `_comment`** con metadata (tenant ID, timestamp del último refresh) que se preserva entre runs — útil para diffs y para que el reviewer entienda cuándo se actualizó.
+
+**Atajos de `fetch_jwks.py`**:
+
+- Sin flags: imprime el JSON raw a stdout (para inspección ad-hoc).
+- `--write`: actualiza el snapshot file en el path default.
+- `--snapshot <path>`: override del path (útil si querés un snapshot alternativo o de testing).
+- `<tenant_id>` posicional: override del tenant default (el de customer-support-agent).
 
 Para un demo de 1-2 semanas, es poco probable que haga falta.
 
