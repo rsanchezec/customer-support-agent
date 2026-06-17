@@ -144,6 +144,7 @@ def create_test_token(
     email: str = "test@example.com",
     audience: str = "api://test-client",
     issuer: str = "https://login.microsoftonline.com/test-tenant/v2.0",
+    tenant_id: str = "test-tenant",
     exp_offset_seconds: int = 3600,
 ) -> str:
     """Create a signed JWT for testing."""
@@ -154,6 +155,7 @@ def create_test_token(
         "preferred_username": email,
         "aud": audience,
         "iss": issuer,
+        "tid": tenant_id,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=exp_offset_seconds)).timestamp()),
     }

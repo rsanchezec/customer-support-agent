@@ -51,3 +51,14 @@ class TestFoundrySettings:
         monkeypatch.setenv("AGENT_VERSION", "42")
         settings = Settings()
         assert settings.agent_version_str == "42"
+
+    def test_multitenant_jwks_uses_common_when_enabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Public multi-tenant mode uses the common JWKS authority by default."""
+        monkeypatch.setenv("ENTRA_TENANT_ID", "tenant-id")
+        monkeypatch.setenv("ENTRA_ALLOW_MULTITENANT_ISSUERS", "true")
+
+        settings = Settings()
+
+        assert settings.entra_effective_jwks_tenant_id == "common"

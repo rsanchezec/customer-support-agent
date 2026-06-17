@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
-from app.api.auth.deps import decode_and_validate_token
+from app.api.auth.deps import decode_and_validate_token, get_claims_subject_key
 from app.api.auth.jwks_fetcher import JwksFetcher
 from app.domain.user import User
 from app.services.conversation_service import ConversationService
@@ -40,7 +40,7 @@ async def authenticate_ws(
     except HTTPException as exc:
         raise ValueError(str(exc.detail))
 
-    oid = claims.get("oid")
+    oid = get_claims_subject_key(claims, settings)
     if not oid:
         raise ValueError("invalid token")
 

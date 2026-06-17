@@ -25,7 +25,8 @@ def get_settings() -> Settings:
 
 def _build_jwks_uri(settings: Settings) -> str:
     """Construct the Entra ID JWKS URI from the tenant ID."""
-    return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/v2.0/keys"
+    tenant = settings.entra_effective_jwks_tenant_id
+    return f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
 
 
 def _build_jwks_v1_uri(settings: Settings) -> str:
@@ -60,6 +61,43 @@ def _accepted_issuers(settings: Settings) -> list[str]:
             ]
         )
     return list(dict.fromkeys(iss for iss in issuers if iss))
+
+
+def _issuer_matches_tenant(issuer: str, tenant_id: str) -> bool:
+    """Return whether an issuer is a valid v1/v2 Entra issuer for a tenant."""
+    return issuer in {
+        f"https://sts.windows.net/{tenant_id}/",
+        f"https://login.microsoftonline.com/{tenant_id}/v2.0",
+    }
+
+
+def _is_accepted_issuer(claims: dict, settings: Settings) -> bool:
+    """Validate issuer for single-tenant or public multi-tenant demos."""
+    issuer = claims.get("iss")
+    if not isinstance(issuer, str) or not issuer:
+        return False
+
+    if issuer in _accepted_issuers(settings):
+        return True
+
+    if not settings.entra_allow_multitenant_issuers:
+        return False
+
+    tenant_id = claims.get("tid")
+    return isinstance(tenant_id, str) and _issuer_matches_tenant(issuer, tenant_id)
+
+
+def get_claims_subject_key(claims: dict, settings: Settings) -> str | None:
+    """Return the stable user key stored in users.entraid_oid."""
+    subject = claims.get("oid") or claims.get("sub")
+    if not isinstance(subject, str) or not subject:
+        return None
+
+    tenant_id = claims.get("tid")
+    if settings.entra_allow_multitenant_issuers and isinstance(tenant_id, str) and tenant_id:
+        return f"{tenant_id}:{subject}"
+
+    return subject
 
 
 def _log_invalid_token(reason: str, token: str, settings: Settings, kid: str | None) -> None:
@@ -109,7 +147,7 @@ async def decode_and_validate_token(
     issuers = _accepted_issuers(settings)
     if audiences:
         decode_kwargs["audience"] = audiences
-    if issuers:
+    if issuers and not settings.entra_allow_multitenant_issuers:
         decode_kwargs["issuer"] = issuers
 
     saw_matching_kid = False
@@ -125,7 +163,11 @@ async def decode_and_validate_token(
             saw_matching_kid = True
             try:
                 pyjwk = PyJWK.from_dict(key)
-                return jwt.decode(token, pyjwk.key, **decode_kwargs)
+                claims = jwt.decode(token, pyjwk.key, **decode_kwargs)
+                if not _is_accepted_issuer(claims, settings):
+                    _log_invalid_token("invalid_issuer", token, settings, kid)
+                    raise HTTPException(status_code=401, detail="invalid token")
+                return claims
             except jwt.ExpiredSignatureError:
                 _log_invalid_token("expired", token, settings, kid)
                 raise HTTPException(status_code=401, detail="token expired")
@@ -135,6 +177,8 @@ async def decode_and_validate_token(
             except jwt.PyJWTError as exc:
                 _log_invalid_token(type(exc).__name__, token, settings, kid)
                 raise HTTPException(status_code=401, detail="invalid token")
+            except HTTPException:
+                raise
             except Exception:
                 _log_invalid_token("invalid_jwk", token, settings, kid)
                 raise HTTPException(status_code=401, detail="invalid token")
@@ -241,7 +285,7 @@ async def get_current_user(
 
     claims = await decode_and_validate_token(token, jwks, settings)
 
-    oid = claims.get("oid")
+    oid = get_claims_subject_key(claims, settings)
     if not oid:
         raise HTTPException(status_code=401, detail="invalid token")
 

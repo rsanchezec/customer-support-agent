@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     entra_tenant_id: str = Field(default="")
     entra_client_id: str = Field(default="")
     entra_app_audience: str = Field(default="")
+    entra_jwks_tenant_id: str = Field(default="", validation_alias="ENTRA_JWKS_TENANT_ID")
+    entra_allow_multitenant_issuers: bool = Field(
+        default=False, validation_alias="ENTRA_ALLOW_MULTITENANT_ISSUERS"
+    )
     # Optional: comma-separated allow-lists for relaxed dev validation.
     # When empty, validation is strict (default tenant + audience).
     # When set, any of the listed values is accepted. Useful for local dev
@@ -66,3 +70,12 @@ class Settings(BaseSettings):
     def entra_allowed_issuers(self) -> list[str]:
         """Parse comma-separated string into a list of issuers."""
         return [s.strip() for s in self.entra_allowed_issuers_raw.split(",") if s.strip()]
+
+    @property
+    def entra_effective_jwks_tenant_id(self) -> str:
+        """Return the Entra authority segment used for JWKS discovery."""
+        if self.entra_jwks_tenant_id:
+            return self.entra_jwks_tenant_id
+        if self.entra_allow_multitenant_issuers:
+            return "common"
+        return self.entra_tenant_id

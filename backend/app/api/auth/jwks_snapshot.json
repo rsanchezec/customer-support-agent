@@ -1,5 +1,5 @@
 {
-  "_comment": "Hardcoded JWKS snapshot for tenant 4922a12a-f1fd-40bc-affe-c63dc44acc33. Pinned 2026-06-16. Refresh with: python example/fetch_jwks.py --write (run from project root). Keys are RSA public keys (n, e) used to verify JWT signatures. Not secrets — anyone with the JWKS URL can fetch them. Rotate every ~6 weeks when Microsoft rotates signing keys.",
+  "_comment": "Hardcoded JWKS snapshot for tenant common. Last refreshed 2026-06-17T15:27:22+00:00 via `python example/fetch_jwks.py --write`. Keys are RSA public keys (n, e) used to verify JWT signatures. Not secrets \u2014 anyone with the JWKS URL can fetch them. Rotate when Microsoft rotates signing keys (~6 weeks).",
   "keys": [
     {
       "kty": "RSA",
@@ -7,7 +7,12 @@
       "kid": "cYovdPYWG6Wi4m9upkiJFv0-K_k",
       "x5t": "cYovdPYWG6Wi4m9upkiJFv0-K_k",
       "n": "oF7hyLvRZlWKRB9PRg8ZXZfs37XFsMQG30Ihv4uhC3GK3hBUHRbF9t46exQHronUMCGvO418qng5qXVP-mvfyAkzS-v_kgEix8Oq205h43gsSvk_YBCZBH1nxjT8GLcbRI4uXpzfopmuYXbYEXfFkKCh7TBz1oIjnP43nMqi8LHCzUUiHA9EWYLMGS8pu1iNjntW0dbd3R78ybBVfps-hwZNLWEQjxPI2lUy7fycAyafQQE1xvtF4Rf5m9D6pByQu3b-hudXhDcfR97ubix2trL8EUz5jqTs20PIQ8p-r5aVbsllfZENaXcQLGIgwIL_q76iACMgI-krJBCg8YXZ-w",
-      "e": "AQAB"
+      "e": "AQAB",
+      "x5c": [
+        "MIIC/TCCAeWgAwIBAgIIG4F5vOECMz0wDQYJKoZIhvcNAQELBQAwLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDAeFw0yNjA0MjYxODAzNTRaFw0zMTA0MjYxODAzNTRaMC0xKzApBgNVBAMTImFjY291bnRzLmFjY2Vzc2NvbnRyb2wud2luZG93cy5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCgXuHIu9FmVYpEH09GDxldl+zftcWwxAbfQiG/i6ELcYreEFQdFsX23jp7FAeuidQwIa87jXyqeDmpdU/6a9/ICTNL6/+SASLHw6rbTmHjeCxK+T9gEJkEfWfGNPwYtxtEji5enN+ima5hdtgRd8WQoKHtMHPWgiOc/jecyqLwscLNRSIcD0RZgswZLym7WI2Oe1bR1t3dHvzJsFV+mz6HBk0tYRCPE8jaVTLt/JwDJp9BATXG+0XhF/mb0PqkHJC7dv6G51eENx9H3u5uLHa2svwRTPmOpOzbQ8hDyn6vlpVuyWV9kQ1pdxAsYiDAgv+rvqIAIyAj6SskEKDxhdn7AgMBAAGjITAfMB0GA1UdDgQWBBQzieSLGoXRgvxUNMLZ6kWEEQWYgjANBgkqhkiG9w0BAQsFAAOCAQEAKbuVO0mO1nNPOXHKT/8fxJi0qu2LuoV3nTSHmXKBhgonxZbOG/6GcKPG1YXFnuqcutCJuFddJGfJZAxx6q43iIUjLi+CUoteWt75ST3c3ZLPDphL+wLG/upQHgoiJCpneplTOAimW7Cb7koLlNnntOKKtnZcUkl8rHW6lPk1ZTw/Nkv78XN9iVqlYwdEuSGILUx/Tvp8l8IbV8kyICGl31QgSFbUwGaFSdCvBAD99nYKSWlbZl0XX02OE8vrPEpMOAZK1BZtL24UMxpfBbe7qvKo9khWHZsVTckdh2V8igtB/L1kSDWOoLm+ltmB6NlI3mLyuw5ORaqm5Lb8G7WknA=="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0"
     },
     {
       "kty": "RSA",
@@ -15,7 +20,12 @@
       "kid": "wh06sEkzLHJ5sNNaUyRY2_6O8K0",
       "x5t": "wh06sEkzLHJ5sNNaUyRY2_6O8K0",
       "n": "vOPjy3R_ACXnxYPAVvvQiXWl4Saa7fagNNf5q53Bb5Pj1o2TtY4cTiRooFDvpKeE-FVrC0ZclenTOiTPvgJqxHQnxCTBBZYRQ9UF7KDf3fFAAUnn4HsLQRir6dwb-E5GRG4T7i_y3pzAGun5QFsA9-eNLRucDfGpONcxhujoCTMnfqo6ac2h6BUQqlWza9Ko8wEeTHmzGlkr5bCqJXI4vtjcapQlCpvs5DSTpxWMwbHU-h-jIDsI97wIIlIn-jkmkbhUp7PZdlrot9-LBsVD3ZUyPD2poLmr161QW5i4lOEn4lhxfRtEmn9d6C0N0SQXCp5pk-kA15gyNZavP3n5sQ",
-      "e": "AQAB"
+      "e": "AQAB",
+      "x5c": [
+        "MIIC/jCCAeagAwIBAgIJANF3T15yGBgTMA0GCSqGSIb3DQEBCwUAMC0xKzApBgNVBAMTImFjY291bnRzLmFjY2Vzc2NvbnRyb2wud2luZG93cy5uZXQwHhcNMjYwNTEzMTkwMzIyWhcNMzEwNTEzMTkwMzIyWjAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvOPjy3R/ACXnxYPAVvvQiXWl4Saa7fagNNf5q53Bb5Pj1o2TtY4cTiRooFDvpKeE+FVrC0ZclenTOiTPvgJqxHQnxCTBBZYRQ9UF7KDf3fFAAUnn4HsLQRir6dwb+E5GRG4T7i/y3pzAGun5QFsA9+eNLRucDfGpONcxhujoCTMnfqo6ac2h6BUQqlWza9Ko8wEeTHmzGlkr5bCqJXI4vtjcapQlCpvs5DSTpxWMwbHU+h+jIDsI97wIIlIn+jkmkbhUp7PZdlrot9+LBsVD3ZUyPD2poLmr161QW5i4lOEn4lhxfRtEmn9d6C0N0SQXCp5pk+kA15gyNZavP3n5sQIDAQABoyEwHzAdBgNVHQ4EFgQUQIbB4n3jDdHpmFjllxoT9lWMJCYwDQYJKoZIhvcNAQELBQADggEBAAJGxqDzkJoodoAI9nb58V2YTY6Od0PaOoTtyrrXxgiCqyN+mI5HICvl+k98rD/d+TseJC+eiDoahpJacEOdQUON+gauFRWIiv/WaZNhPhIbs7XCsjWL8tNI6ev3NrfuiZap5mTJlz3TQ+sv+FNvPqXaWOeZuwW3MS2PKF7VGFQMZmt1wOk+JS2RHQi2IBaRVx75gUJ/4Qp6JFFV9HcEZtX7wCoDvJxGadgRwrRUWHvGxqwPYTh8JY0tE19SN/45OjEcnZGP/dWL4LL4mNGOEAqo1/HGO6mnX3j3nXd50OMDE1tsHtBHKRIbG+I548FPE1b8ApSWfg2I/r7Q+mY5Wf4="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0"
     },
     {
       "kty": "RSA",
@@ -23,7 +33,12 @@
       "kid": "k2MRQ8fu3BbJrTPLnDOyWDq1m60",
       "x5t": "k2MRQ8fu3BbJrTPLnDOyWDq1m60",
       "n": "kuZEJyH4lGC6nsedsIaeO4i1_-_Xv6aJU4uXVGzYhfwi1Cc0hKqdQ_ITktP6Cyfos-UPbXO6FEv6VwF2I88cnWrV1riiFIS9L99r8YuSh5z260hdJewk9wwtLlZ54RrfOoLqESgEiBSWVwHyCJEwV0kUSFsU1TEFOZPFYeHJBQXSASS6t4V2hPHgpKiQ-_3E7WS6XlPMQGXGcKa7P4Feo4yo5Ut6h4xKdGny5fFCvOQHjDbn4HGDa_Aup8435n6A9rlK_bsf_z-uirXOQX7-YTaLex5KrurGNJU6Yi3tC87-eziipo8H8D0hJW1yteHm7n5VdfOYUEMNI7zcSBLPnQ",
-      "e": "AQAB"
+      "e": "AQAB",
+      "x5c": [
+        "MIIC/TCCAeWgAwIBAgIIAkm+hiil83cwDQYJKoZIhvcNAQELBQAwLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDAeFw0yNjA1MjIyMTAyNTFaFw0zMTA1MjIyMTAyNTFaMC0xKzApBgNVBAMTImFjY291bnRzLmFjY2Vzc2NvbnRyb2wud2luZG93cy5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCS5kQnIfiUYLqex52whp47iLX/79e/polTi5dUbNiF/CLUJzSEqp1D8hOS0/oLJ+iz5Q9tc7oUS/pXAXYjzxydatXWuKIUhL0v32vxi5KHnPbrSF0l7CT3DC0uVnnhGt86guoRKASIFJZXAfIIkTBXSRRIWxTVMQU5k8Vh4ckFBdIBJLq3hXaE8eCkqJD7/cTtZLpeU8xAZcZwprs/gV6jjKjlS3qHjEp0afLl8UK85AeMNufgcYNr8C6nzjfmfoD2uUr9ux//P66Ktc5Bfv5hNot7Hkqu6sY0lTpiLe0Lzv57OKKmjwfwPSElbXK14ebuflV185hQQw0jvNxIEs+dAgMBAAGjITAfMB0GA1UdDgQWBBScQjN2rIWAU93wJsjSau60PQoQNzANBgkqhkiG9w0BAQsFAAOCAQEAg/VyO+PYOPhnlcD5WMzxZYAFo/CgxyTOjuN7H/UUfQj/UoZNhv2HI1iODFr1xKKMEpNooGKugNoOQcLXXl+GnarRWtUgm42thUQr1ihyy0qSpBOEkmKQk9eyp7C8tsGwGN4KR80bIKzyI9V9PN6kXIPsQRNf66l2Euy/EXpf3C/I974iGrdWgcfoT4Srnu7JysKzFUVFlkU96llf0pC9tx5UR5dsFB99RPUZLD4FcGVG8PnMgSZNXOdlcYlJycGkgytwjf5QbKEGSM7ujcCd1RZooXw5MH+fixL6mw9wYfDd2YJDhiswGYgXIdZLx9VgMBNQXdHG3cX0aVY8vC3zFw=="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0"
     },
     {
       "kty": "RSA",
@@ -31,7 +46,12 @@
       "kid": "aFkmKVFc-4WV6sXCBvNZkXI505Y",
       "x5t": "aFkmKVFc-4WV6sXCBvNZkXI505Y",
       "n": "okYm9VU3RbibMexFuFthuBL7vG5a2UUtHaUpBZOLOogVhpWZYIiHedAOhb2oeZvdUVHcqsSckZLnUBqnzK-UfjWG9fep_hY-jPQRgpsF5SUp8M8d-fvbAqn25O0STfGFBB2lz6vVurnd7MskkhD_K8a0OfyKzEw03ncN4vXekn7-Sn-yCHQoHQYxKIHJaCjxBlP6Jj3kMwMy93Pz6gSep4CbtGdIRGqmzDTc0tAz9MNEnenptTTOkNgXO4a__bIE-pqRCFCuU7tLHbJCxbVe9kE_QtrZG7ERzssJCHWKIhCmyB8v3LWx8zZIYritNp34aV_8UZVSqf-JVsJgfQixOQ",
-      "e": "AQAB"
+      "e": "AQAB",
+      "x5c": [
+        "MIIC/TCCAeWgAwIBAgIICR+ICKYVUk0wDQYJKoZIhvcNAQELBQAwLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDAeFw0yNjA2MDgxMjA0MjZaFw0zMTA2MDgxMjA0MjZaMC0xKzApBgNVBAMTImFjY291bnRzLmFjY2Vzc2NvbnRyb2wud2luZG93cy5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCiRib1VTdFuJsx7EW4W2G4Evu8blrZRS0dpSkFk4s6iBWGlZlgiId50A6Fvah5m91RUdyqxJyRkudQGqfMr5R+NYb196n+Fj6M9BGCmwXlJSnwzx35+9sCqfbk7RJN8YUEHaXPq9W6ud3syySSEP8rxrQ5/IrMTDTedw3i9d6Sfv5Kf7IIdCgdBjEogcloKPEGU/omPeQzAzL3c/PqBJ6ngJu0Z0hEaqbMNNzS0DP0w0Sd6em1NM6Q2Bc7hr/9sgT6mpEIUK5Tu0sdskLFtV72QT9C2tkbsRHOywkIdYoiEKbIHy/ctbHzNkhiuK02nfhpX/xRlVKp/4lWwmB9CLE5AgMBAAGjITAfMB0GA1UdDgQWBBQcHjvDRt+O89oZbJZ/B4ANuFy9XDANBgkqhkiG9w0BAQsFAAOCAQEAlqWkldYDJ0DiXHQrtE6SJsZEAX91IohfWWgA7FnJr3d2o2BtRL5BIFaWC2epZ0nmVOGA/nBo5NZ+5AQ+puqgI7QJSX5rVBS0R3G1dGt8eTta0f1cyqRO63yIWeN2yv9mJpg9//fNCISf/LURVaOOSp08vRLNhuMUqzHqHCMlY7XihinKf6H8NY5Yh+m2RmL9BK+mf1nUA+GFRDy2KGr3usb8VqN8ODr3e//rAMbkjaKT8B60rgjSvE6DdCZ7CxNdse28E+vbDXSFlM7SVYs7DfoM+U1xAR2OWf/ZvW6I4bo3G09oDYIumA1QS0doYA+b86d/Y9bsW9WScM8zt02uOw=="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0"
     },
     {
       "kty": "RSA",
@@ -39,7 +59,51 @@
       "kid": "Xt33b5Me9iaL3_mKDW6EfTCTJkI",
       "x5t": "Xt33b5Me9iaL3_mKDW6EfTCTJkI",
       "n": "ntVetG6jtU9jEUWOb72tiOoaPK8S1fgJ0EWwb72dQ7WYbz4oOGguKI2J6hygTnM4JCpLRWvPVUtDpmns391naHEWRHXgTYHinb3kzjPaBW7R40m1RAbW2SwnZR_rQDDMgI6XcnGA5481Nu8VqIEePScCiGrgBiFgAxWpVOLnkgzXmgBcmtafnYkYeA6V4UfDBhkQLcOt2FXmi4Jlm6J95qeHf42KZtWDpGUliJnQDRlwu3ZscDzlAHIf1yUTlCb7VcYcnhjyGxUUbFXvbif2M1gJ2D4UKmLN6Pp07tYBNM6CX3A8rjrUWTOaFCqkwWODx6dGPk9g-8qFymY-SU5Piw",
-      "e": "AQAB"
+      "e": "AQAB",
+      "x5c": [
+        "MIIC6jCCAdKgAwIBAgIJAI5HFy3m0Bg/MA0GCSqGSIb3DQEBCwUAMCMxITAfBgNVBAMTGGxvZ2luLm1pY3Jvc29mdG9ubGluZS51czAeFw0yNjA1MzExNjAxMzdaFw0zMTA1MzExNjAxMzdaMCMxITAfBgNVBAMTGGxvZ2luLm1pY3Jvc29mdG9ubGluZS51czCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJ7VXrRuo7VPYxFFjm+9rYjqGjyvEtX4CdBFsG+9nUO1mG8+KDhoLiiNieocoE5zOCQqS0Vrz1VLQ6Zp7N/dZ2hxFkR14E2B4p295M4z2gVu0eNJtUQG1tksJ2Uf60AwzICOl3JxgOePNTbvFaiBHj0nAohq4AYhYAMVqVTi55IM15oAXJrWn52JGHgOleFHwwYZEC3DrdhV5ouCZZuifeanh3+NimbVg6RlJYiZ0A0ZcLt2bHA85QByH9clE5Qm+1XGHJ4Y8hsVFGxV724n9jNYCdg+FCpizej6dO7WATTOgl9wPK461FkzmhQqpMFjg8enRj5PYPvKhcpmPklOT4sCAwEAAaMhMB8wHQYDVR0OBBYEFP5nSqyhnUDS6iA280yJt7X9NBjkMA0GCSqGSIb3DQEBCwUAA4IBAQBZODQtNs11TC5wPA/F430GgjgHdUCSalwiwxljGIAx/PIkdCyAEc2HblqeMxUC78L5dbXs+nFxDpH9VlfnFnfRChD8eVFM0ZOjAIJy4UDoV29Gch5AqIiAx3y8KOsC7B0+bWWsEiUmp6Pzw4xMBLP6bk7mu/bgRFjTWaP3HfmF6LEaBisiGui7mf8Yjh2o8atYijKk9GbV4TE56k1gG6VoypOBeacyFE7XyfB9r7u/gqbGTBJYBiwTyIScy8LqgO6LAkE/4T5kzx8dXqgKUzbjYI46prWYAoMVpj6LRUeovFROBUsq4Zp08ut/eeSG8F9mheOVbVzcP+0OIqzzD9H7"
+      ],
+      "cloud_instance_name": "microsoftonline.us",
+      "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0"
+    },
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "d-3XVz0RqKwOUUCv5JXOZRXF7Zc",
+      "x5t": "d-3XVz0RqKwOUUCv5JXOZRXF7Zc",
+      "n": "iDu1gQ7TJMs6VMO-uh6iAvvs5QjuVGnDglPEoCB5QabS6DBiokHfljamodtXwtEFazGO4-yLQoli_ikYlBTBd1ExxcINHTlNwXxECVAt02Oy4ljL8Z_z3POGO-nYvPHCT0_YOnZgRQ-0obm_2Y6sGILrahrwbks5r0t9Kz5ZL9ha9TpWFyHONLId8CGxNaOgIFtsu04WN_ZVPCUzMFcYcgKDWwNCQ47IsFtFpTFRmxb15X198CoP1xqM1vHB3xiYLTBRfxX_ENnxUOkJyKBmz1YL_hb8jSNiWkyPCRqpIXojvVTvvZ_Y1XY9CUM12lf090QUqA_7i84J4yTUom7gxQ",
+      "e": "AQAB",
+      "x5c": [
+        "MIIDCjCCAfKgAwIBAgIQCbUiyAi4mEih9uoBfzOkezANBgkqhkiG9w0BAQsFADApMScwJQYDVQQDEx5MaXZlIElEIFNUUyBTaWduaW5nIFB1YmxpYyBLZXkwHhcNMjYwNjA3MTAzMDM0WhcNMzEwNjA3MTAzMDM0WjApMScwJQYDVQQDEx5MaXZlIElEIFNUUyBTaWduaW5nIFB1YmxpYyBLZXkwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCIO7WBDtMkyzpUw766HqIC++zlCO5UacOCU8SgIHlBptLoMGKiQd+WNqah21fC0QVrMY7j7ItCiWL+KRiUFMF3UTHFwg0dOU3BfEQJUC3TY7LiWMvxn/Pc84Y76di88cJPT9g6dmBFD7Shub/ZjqwYgutqGvBuSzmvS30rPlkv2Fr1OlYXIc40sh3wIbE1o6AgW2y7ThY39lU8JTMwVxhyAoNbA0JDjsiwW0WlMVGbFvXlfX3wKg/XGozW8cHfGJgtMFF/Ff8Q2fFQ6QnIoGbPVgv+FvyNI2JaTI8JGqkheiO9VO+9n9jVdj0JQzXaV/T3RBSoD/uLzgnjJNSibuDFAgMBAAGjLjAsMB0GA1UdDgQWBBRq/J/LDSBzbHeGxmho1E6WscPbcDALBgNVHQ8EBAMCAsQwDQYJKoZIhvcNAQELBQADggEBAF3wPEcWHoPHmaBW6eMfI2cv4eHRa0DieG4sD/4wQewP3H+JU5swzJF9oEtrAmGtLSY3FjBnrbZHgon2Yr6bl5EzodC3Gs/DjGvxZhQ/PxJBk+5IYmEjRtgwpG/LHKv7b1ZVh78mGT0ObMe8wUKHlJ1tQx6TzUsDmXJ8qYrgc1B1Vdy8vuRzkuSiYXzBo9OlAGlPLleCoq+bBhQV0968yczCr8tFqq41VigyMm6NKRSH68PjfBoCl7AFAQcz9x+mgFjSoWPQTJMggyBFZ3/5PNkgcxC+FUdHZLYCO11bqGOTw5qGtOQZ/vmiusmdatoq0FW05Tsxp7qbgwfezLyA3UE="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+    },
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "H0JOtS-w_7Np8bsWn02IOQ2qg10",
+      "x5t": "H0JOtS-w_7Np8bsWn02IOQ2qg10",
+      "n": "uNFRAbdMWkGN_PqkQhAuVy0ozIGBDdd-szJf6lMlZTYbc7gwaRKnhopG3Fe3da_ul5prrXiJmQXFrSxoSSbvECYkn2tCQpfLXJmine_Mzuc0NOW1jZi5SC2Y4N54qLxMHzLJZZ3J2oBMN0_U3lF0V2fCPhYAD13sM0NCvvXNZid3is3Zs5LvYLVt9sDgxuJTg1t80KzmpnqeChG9tiIEyl080Y3uMzSl6PoPzdNuYcqSGLqKo2n_MdGGhVrkh2QDrR6lKFO5n4fyKr52HCOzk8JJ2zGPmKCQxDrt-khRD9FAyMDb6EMSczeEAB_7sK-Mryp93_y86IhDm1V-4uMBuw",
+      "e": "AQAB",
+      "x5c": [
+        "MIIDCzCCAfOgAwIBAgIRAJyFDp4M4d46wKQcojYlIn0wDQYJKoZIhvcNAQELBQAwKTEnMCUGA1UEAxMeTGl2ZSBJRCBTVFMgU2lnbmluZyBQdWJsaWMgS2V5MB4XDTI2MDUyNTEyMzEyOVoXDTMxMDUyNTEyMzEyOVowKTEnMCUGA1UEAxMeTGl2ZSBJRCBTVFMgU2lnbmluZyBQdWJsaWMgS2V5MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuNFRAbdMWkGN/PqkQhAuVy0ozIGBDdd+szJf6lMlZTYbc7gwaRKnhopG3Fe3da/ul5prrXiJmQXFrSxoSSbvECYkn2tCQpfLXJmine/Mzuc0NOW1jZi5SC2Y4N54qLxMHzLJZZ3J2oBMN0/U3lF0V2fCPhYAD13sM0NCvvXNZid3is3Zs5LvYLVt9sDgxuJTg1t80KzmpnqeChG9tiIEyl080Y3uMzSl6PoPzdNuYcqSGLqKo2n/MdGGhVrkh2QDrR6lKFO5n4fyKr52HCOzk8JJ2zGPmKCQxDrt+khRD9FAyMDb6EMSczeEAB/7sK+Mryp93/y86IhDm1V+4uMBuwIDAQABoy4wLDAdBgNVHQ4EFgQUMiRusX3GIg+HDfdQD3kiQJb5MQ8wCwYDVR0PBAQDAgLEMA0GCSqGSIb3DQEBCwUAA4IBAQCh6lJXFCt4cw3qNKbMa9pV4kHY4kolLegMT9SHbRSW2MBK1IcxsN/HvrfNbmXQ9u15QB4lIPtQOApsS1FZ6OWLsV6D/PBxPYp5lBFzuYOl4zhh6k62aw/CBPoYFPxaz9GdZ+OtlJ8qMyklgg4EWZvt013NibB6ocJvM+F0kaHHW3uj+h70BpdeOwe3x99uaSoFxS7XJoMcIdshTTqXqDj2OxRvO1lWjlqlpmNA+JiYITv8fL6SI3KQdfqy/eOg+AcJ2cdDaXniTsVwAgU3es/G3a8l13/4G7eA50gtpgtoxIlNwu/Lcf9S9MpoD91dPbcdoKJ1GmCrp7n5YQgE3ffV"
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+    },
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "WhbMkxZh2-Vh0hv5vl6Wo5XN-TQ",
+      "x5t": "WhbMkxZh2-Vh0hv5vl6Wo5XN-TQ",
+      "n": "rFR1drVxL2QTmxn2cRmOOudP-AqLKp4vlQrNu_dniLJyoo7Uw9fzFDkSckEmel7B7KT1ibl6NGuK94cPCT9Aqr0ztlC2sIPvkUTOKFM2MqckXDJCox4TcmhSNIt-vT7jYQSOrtdFF8M0S4E-WVUUhdGoQ9xAfEmofmISh01x4wkTDzreENjHBJI0O4JFl96z56S0LLsR-yBlgtFidu33tkRKt1joiLxv7yHwODg0HZeXp3t5DPwqPjfQB8YKf5I2-gWcdo3ZPbADCtkRAYWl13DEPxu8Xzpmi-DhXzHUUD-j7EKTBLZ5EWFfODi3NvG9ei7mX3N-iqqoe_JFYmPpcw",
+      "e": "AQAB",
+      "x5c": [
+        "MIIDCjCCAfKgAwIBAgIQUANKvqe5iCC6j/wptJpSFzANBgkqhkiG9w0BAQsFADApMScwJQYDVQQDEx5MaXZlIElEIFNUUyBTaWduaW5nIFB1YmxpYyBLZXkwHhcNMjYwNTEyMTcwMTM4WhcNMzEwNTEyMTcwMTM4WjApMScwJQYDVQQDEx5MaXZlIElEIFNUUyBTaWduaW5nIFB1YmxpYyBLZXkwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCsVHV2tXEvZBObGfZxGY4650/4Cosqni+VCs2792eIsnKijtTD1/MUORJyQSZ6XsHspPWJuXo0a4r3hw8JP0CqvTO2ULawg++RRM4oUzYypyRcMkKjHhNyaFI0i369PuNhBI6u10UXwzRLgT5ZVRSF0ahD3EB8Sah+YhKHTXHjCRMPOt4Q2McEkjQ7gkWX3rPnpLQsuxH7IGWC0WJ27fe2REq3WOiIvG/vIfA4ODQdl5ene3kM/Co+N9AHxgp/kjb6BZx2jdk9sAMK2REBhaXXcMQ/G7xfOmaL4OFfMdRQP6PsQpMEtnkRYV84OLc28b16LuZfc36Kqqh78kViY+lzAgMBAAGjLjAsMB0GA1UdDgQWBBR8k+7kVzCffLEK9Au+M7IBj6i95jALBgNVHQ8EBAMCAsQwDQYJKoZIhvcNAQELBQADggEBAB7UYOIMOvenDcBCe+jqbn5ZamePe8cywEiIfBg8igpPaCojACRKdx9Y/lwkpYQERbuzJVWi10TfEK1Eav0+CniyYvtiCwwx1KQPkMASbPvostjl/xTWs6+nekW5Wti5oXpD/Ld4NxOcrA9PEbpE2SnokopL/BvaH7zXBcmBMeucIDCcsU19pGSdp30B51Fi59BoMv0gkAJhZ9dmBoc7rB15ViC1tLDcrz0aqQ72NL9qlz7hh8GjAfEGUUjBXqDyLc7+hEmml1nemfeIS/3e/iVcsfbR9Au0gvIkMl4ZF9YanbXcr52N2B4wZCktEZKdgaCqTDnsGgjKnALojlxxCJI="
+      ],
+      "cloud_instance_name": "microsoftonline.com",
+      "issuer": "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
     }
   ]
 }

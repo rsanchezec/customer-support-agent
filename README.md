@@ -372,9 +372,11 @@ Las variables se cargan vía `pydantic-settings` desde `.env` (ver `app/settings
 | `AZURE_AI_AGENT_NAME` | Nombre lógico del agente desplegado | `customer-support-agent` | Sí |
 | `AGENT_VERSION` | Versión del agente. Vacío = tomar la última publicada | `1` | No |
 | `FOUNDRY_MODEL` | Modelo del agente (referencia, lo lee el cliente Foundry) | `gpt-5-mini` | No (default `gpt-5-mini`) |
-| `ENTRA_TENANT_ID` | Tenant ID de Entra (para construir la JWKS URI) | `11111111-2222-3333-4444-555555555555` | Sí |
+| `ENTRA_TENANT_ID` | Tenant ID base de Entra | `11111111-2222-3333-4444-555555555555` | Sí |
 | `ENTRA_CLIENT_ID` | Application (client) ID de la SPA | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` | Sí |
 | `ENTRA_APP_AUDIENCE` | Audience esperado en el JWT (típicamente `api://<client-id>`) | `api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` | Sí |
+| `ENTRA_ALLOW_MULTITENANT_ISSUERS` | Acepta issuers dinámicos cuyo `tid` coincide con el issuer (demo público) | `true` | No |
+| `ENTRA_JWKS_TENANT_ID` | Override del authority usado para JWKS; usar `common` en demo público | `common` | No |
 | `ENTRA_ALLOWED_AUDIENCES` | Lista CSV de audiences adicionales (MSAs personales, multi-tenant) | `api://other-app,api://dev` | No |
 | `ENTRA_ALLOWED_ISSUERS` | Lista CSV de issuers aceptados además de los v1/v2 por defecto | `https://sts.windows.net/<tenant>/` | No |
 | `CORS_ALLOWED_ORIGINS` | Lista CSV de orígenes permitidos para CORS | `http://localhost:5173,https://app.example.com` | No (default `["http://localhost:5173"]`) |
@@ -388,6 +390,7 @@ El lector tipado está en `frontend/src/lib/env.ts`. Todas las variables deben l
 | Variable | Descripción | Ejemplo | Requerido |
 |---|---|---|---|
 | `VITE_ENTRA_TENANT_ID` | Tenant ID de Entra | `11111111-2222-3333-4444-555555555555` | Sí |
+| `VITE_ENTRA_AUTHORITY` | Authority de MSAL; usar `common` para demo público | `https://login.microsoftonline.com/common` | No |
 | `VITE_ENTRA_CLIENT_ID` | Application (client) ID de la SPA | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` | Sí |
 | `VITE_ENTRA_API_SCOPE` | Scope delegado que la SPA solicita al hacer login | `api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/access_as_user` | Sí |
 | `VITE_ENTRA_REDIRECT_URI` | URI de retorno (debe coincidir con la app registration) | `http://localhost:5173` | No (default `http://localhost:5173`) |
@@ -612,6 +615,7 @@ Los fixtures de test del backend usan SQLite en memoria con `aiosqlite` y mockea
 | Key | Value (demo actual) | Descripción |
 |---|---|---|
 | `VITE_ENTRA_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant de Entra |
+| `VITE_ENTRA_AUTHORITY` | `https://login.microsoftonline.com/common` | Authority público para aceptar tenants externos y cuentas personales |
 | `VITE_ENTRA_CLIENT_ID` | `85b8f05c-7a9e-4c18-bfd0-281a5521c391` | Client ID del App Registration del FE |
 | `VITE_ENTRA_API_SCOPE` | `api://customer-support-agent/access_as_user` | Scope delegado que pide MSAL al hacer login |
 | `VITE_ENTRA_REDIRECT_URI` | `https://customer-support-agent-omega.vercel.app` | Debe coincidir exactamente con el Redirect URI configurado en el App Registration |
@@ -649,7 +653,7 @@ La SPA de Vercel se autentica contra esta App Registration. Datos del demo actua
 
 **Pasos para crearlo en Azure Portal** (Microsoft Entra ID → App registrations → New registration):
 
-1. **Name**: `Customer Support Agent - Frontend`. Supported account types: `Accounts in this organizational directory only` (single tenant).
+1. **Name**: `Customer Support Agent - Frontend`. Para demo público, Supported account types: `Any Entra ID tenant and personal Microsoft accounts`.
 2. **Redirect URI**: platform `Single-page application`, valor `https://customer-support-agent-omega.vercel.app`. Guardar.
 3. **Expose an API** → "Set the Application ID URI" → reemplazar el `api://<guid>` default por `api://customer-support-agent`.
 4. **Expose an API** → "Add a scope":
@@ -686,9 +690,11 @@ La SPA de Vercel se autentica contra esta App Registration. Datos del demo actua
 | `FOUNDRY_MODEL` | `gpt-5-mini` | Modelo de referencia (lo lee el cliente Foundry) |
 | `APP_ENV` | `prod` | Desactiva el `echo` de SQLAlchemy |
 | `DATABASE_URL` | `sqlite+aiosqlite:///./app.db` | Para el demo alcanza con SQLite; ver advertencia sobre disco efímero abajo |
-| `ENTRA_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant de Entra (para construir la JWKS URI) |
+| `ENTRA_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant base de Entra |
 | `ENTRA_CLIENT_ID` | `85b8f05c-7a9e-4c18-bfd0-281a5521c391` | Client ID de la SPA (se usa como audience) |
 | `ENTRA_APP_AUDIENCE` | `api://customer-support-agent` | Audience esperado en el JWT |
+| `ENTRA_ALLOW_MULTITENANT_ISSUERS` | `true` | Necesario para aceptar usuarios externos y cuentas Hotmail/Outlook |
+| `ENTRA_JWKS_TENANT_ID` | `common` | Usa JWKS de Microsoft `common`, que incluye keys de tenants externos y cuentas personales |
 | `CORS_ALLOWED_ORIGINS` | `https://customer-support-agent-omega.vercel.app` | Único origen permitido en producción |
 | `AZURE_TENANT_ID` | `4922a12a-f1fd-40bc-affe-c63dc44acc33` | Tenant para `ClientSecretCredential` (mismo que la SPA) |
 | `AZURE_CLIENT_ID` | `<service-principal-client-id>` | Client ID del SP `customer-support-agent-backend` (ver sección siguiente) |
@@ -826,8 +832,9 @@ Más fácil para demos: cualquier persona con cuenta Microsoft (work, school o p
 2. En **"Supported account types"**, cambiá de "Single tenant" a una de:
    - **Multitenant** → solo cuentas de organizaciones registradas en Entra ID (excluye cuentas personales tipo @outlook.com).
    - **Multitenant and personal Microsoft accounts** → cualquiera, incluidas cuentas personales. Es la opción más abierta.
-3. **Save**. Listo. Ya pueden entrar.
-4. **El BE no necesita cambios**: el `aud` del token sigue siendo `api://customer-support-agent`, que ya está en `ENTRA_ALLOWED_AUDIENCES` del backend.
+3. En Vercel, setear `VITE_ENTRA_AUTHORITY=https://login.microsoftonline.com/common` y redeployar.
+4. En Render, setear `ENTRA_ALLOW_MULTITENANT_ISSUERS=true` y `ENTRA_JWKS_TENANT_ID=common` y redeployar.
+5. **Save**. Listo. Ya pueden entrar.
 
 ##### Comparación y recomendación
 
@@ -902,4 +909,3 @@ Body:
 ## Licencia
 
 MIT — ver `LICENSE` (TBD: añadir el archivo `LICENSE` en la raíz del repositorio).
-

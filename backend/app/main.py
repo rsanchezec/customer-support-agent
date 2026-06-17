@@ -17,7 +17,8 @@ from app.settings import Settings
 
 def _build_jwks_uri(settings: Settings) -> str:
     """Construct the Entra ID JWKS URI from the tenant ID."""
-    return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/discovery/v2.0/keys"
+    tenant = settings.entra_effective_jwks_tenant_id
+    return f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

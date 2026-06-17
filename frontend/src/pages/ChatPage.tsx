@@ -19,6 +19,9 @@ export function ChatPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [hydrationError, setHydrationError] = useState(false);
+  const [hydrationErrorMessage, setHydrationErrorMessage] = useState(
+    "No se pudo cargar la conversación."
+  );
 
   const threadId = useChatStore((s) => s.threadId);
   const setThreadId = useChatStore((s) => s.setThreadId);
@@ -46,11 +49,17 @@ export function ChatPage() {
       setThreadId(result.id);
       setConversationId(result.id);
       setHydrationError(false);
+      setHydrationErrorMessage("No se pudo cargar la conversación.");
       close();
       setMounted(true);
       connect(token, result.id);
-    } catch {
-      // Stay on empty state
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear una conversación nueva.";
+      setHydrationErrorMessage(message);
+      setHydrationError(true);
     }
   };
 
@@ -100,6 +109,7 @@ export function ChatPage() {
               });
               setConversationId(conv.id, conv.foundry_conversation_id ?? null);
               setHydrationError(false);
+              setHydrationErrorMessage("No se pudo cargar la conversación.");
             }
           } catch {
             if (!cancelled) {
@@ -111,6 +121,7 @@ export function ChatPage() {
               setThreadId(result.id);
               setConversationId(result.id);
               setHydrationError(false);
+              setHydrationErrorMessage("No se pudo cargar la conversación.");
             }
           }
         } else {
@@ -128,8 +139,13 @@ export function ChatPage() {
         if (!cancelled && activeConversationId) {
           connect(token2, activeConversationId);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "No se pudo cargar la conversación.";
+          setHydrationErrorMessage(message);
           setHydrationError(true);
         }
       } finally {
@@ -211,7 +227,7 @@ export function ChatPage() {
       {!isLoading && hydrationError && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           <p className="text-gray-500 text-sm">
-            No se pudo cargar la conversación.
+            {hydrationErrorMessage}
           </p>
           <button
             onClick={handleNewConversation}

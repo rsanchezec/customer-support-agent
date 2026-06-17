@@ -4,6 +4,7 @@
 
 interface ApiFetchOptions extends RequestInit {
   accessToken?: string;
+  timeoutMs?: number;
 }
 
 export class ApiError extends Error {
@@ -22,7 +23,13 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { accessToken, headers, ...rest } = options;
+  const { accessToken, headers, timeoutMs = 45_000, signal, ...rest } = options;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   const fullUrl = path.startsWith("http")
     ? path
@@ -45,10 +52,25 @@ export async function apiFetch<T = unknown>(
     requestHeaders["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(fullUrl, {
-    ...rest,
-    headers: requestHeaders,
-  });
+  let response: Response;
+  try {
+    response = await fetch(fullUrl, {
+      ...rest,
+      headers: requestHeaders,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        "request_timeout",
+        "El backend no respondió a tiempo. Puede estar despertando en Render.",
+        0
+      );
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     let message = response.statusText;

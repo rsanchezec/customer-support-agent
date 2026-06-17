@@ -260,6 +260,61 @@ async def test_raises_401_for_wrong_issuer(settings, fake_jwks, fake_user):
 
 
 @pytest.mark.asyncio
+async def test_accepts_multitenant_issuer_when_enabled(settings, fake_jwks, fake_user):
+    """A valid token from another tenant is accepted only in public demo mode."""
+    object.__setattr__(settings, "entra_allow_multitenant_issuers", True)
+
+    mock_user_service = AsyncMock(spec=UserService)
+    mock_user_service.get_or_create_by_oid.return_value = fake_user
+
+    token = create_test_token(
+        _private_key_pem,
+        _kid,
+        oid="external-user-oid",
+        issuer="https://login.microsoftonline.com/external-tenant/v2.0",
+        tenant_id="external-tenant",
+    )
+
+    with patch("app.api.auth.deps.get_settings", return_value=settings):
+        user = await get_current_user(
+            authorization=f"Bearer {token}",
+            jwks=fake_jwks,
+            user_service=mock_user_service,
+        )
+
+    assert user == fake_user
+    mock_user_service.get_or_create_by_oid.assert_called_once_with(
+        oid="external-tenant:external-user-oid", email="test@example.com"
+    )
+
+
+@pytest.mark.asyncio
+async def test_rejects_multitenant_issuer_when_tid_mismatches(settings, fake_jwks):
+    """The dynamic issuer must still match the token's tid claim."""
+    from fastapi import HTTPException
+
+    object.__setattr__(settings, "entra_allow_multitenant_issuers", True)
+    mock_user_service = AsyncMock(spec=UserService)
+    token = create_test_token(
+        _private_key_pem,
+        _kid,
+        issuer="https://login.microsoftonline.com/external-tenant/v2.0",
+        tenant_id="different-tenant",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        with patch("app.api.auth.deps.get_settings", return_value=settings):
+            await get_current_user(
+                authorization=f"Bearer {token}",
+                jwks=fake_jwks,
+                user_service=mock_user_service,
+            )
+
+    assert exc_info.value.status_code == 401
+    assert "invalid token" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
 async def test_raises_401_for_unknown_kid(settings, fake_jwks, fake_user):
     """Token with unknown kid → 401 'unknown kid'."""
     from fastapi import HTTPException
